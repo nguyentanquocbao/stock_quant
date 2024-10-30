@@ -1,0 +1,12 @@
+{
+    "symbol":                         "string",
+    "id":                              "integer",
+    "type":                           "string",
+    "exchange":                       "string",
+    "en_organ_name":                  "string",
+    "en_organ_short_name":            "string",
+    "organ_short_name":               "string",
+    "organ_name":                     "string",
+    "create_time":            "datetime64[us]",
+    "dropped":                  "object"
+}

@@ -1,0 +1,6 @@
+{
+    "ticker": "symbol",
+    "share_outstanding": ["listing", "listed_share"],
+    "exchange": "exchange",
+    "source": "VCI"
+}
