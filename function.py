@@ -5,20 +5,22 @@ import shutil
 import os
 import pyarrow as pa
 import pyarrow.parquet as pq
-import json
 import time
 
 
-def get_ticker(path, dictionary):
+def get_ticker(path, dictionary) -> pd.DataFrame:
     """_summary_
-    Update and return stock list
+    Update and return stock list, when there is no data in the given path --> start download the whole dataset
     Args:
         path (_type_): path saved parquet data
     Returns:
         _type_: pd.dataframe: stock indentifier data
     """
-    data = pd.read_parquet(path)
-    data = update_ticker(data, path, dictionary)
+    try:
+        data = pd.read_parquet(path)
+        data = update_ticker(data, path, dictionary)
+    except Exception as e:
+        get_full_ticker(path, dictionary)
     return data
 
 
@@ -108,6 +110,17 @@ def get_full_ticker(path, dictionary):
 
 
 def read_1_ticker(ticker, start_date, end_date, dictionary):
+    """_summary_
+    read data for 1 ticker
+    Args:
+        ticker (_type_): ticker name
+        start_date (_type_):
+        end_date (_type_):
+        dictionary (_type_): dictionary for column name
+
+    Returns:
+        _type_: _description_
+    """
     stock = (
         vn(show_log=False)
         .stock(symbol=ticker, source=dictionary["source"])
@@ -116,7 +129,12 @@ def read_1_ticker(ticker, start_date, end_date, dictionary):
     return stock
 
 
-def get_past_Friday():
+def get_past_Friday() -> datetime.date:
+    """_summary_
+    create the lastest Friday in the past to get new data when needed
+    Returns:
+        _type_: _description_
+    """
     date0 = datetime.today().date()
     while date0.weekday() != 4:  # 5 = Saturday, 6 = Sunday
         date0 -= pd.offsets.DateOffset(1)
@@ -124,6 +142,13 @@ def get_past_Friday():
 
 
 def get_full_data(path_ticker, path_out, dictionary):
+    """_summary_
+    down load whole data for all given ticker list
+    Args:
+        path_ticker (_type_): for ticker parquet files
+        path_out (_type_): path for saving data by appending parquet data
+        dictionary (_type_): column names
+    """
     fal_tick = []
     tickers = get_ticker(path_ticker, dictionary)
     data = pd.DataFrame()
@@ -146,11 +171,27 @@ def get_full_data(path_ticker, path_out, dictionary):
     pq.write_to_dataset(table, path_out)
 
 
-def get_data(path_out, path_ticker, dictionary):
-    data = pd.read_parquet(path_out)
+def get_data(path_out, path_ticker, dictionary) -> pd.DataFrame:
+    """_summary_
+    normal functiont to read all data, only download full when run the first time, the later use would have it appended into current path
+    Args:
+        path_out (_type_): path to append or first time save dât
+        path_ticker (_type_): ticker list path
+        dictionary (_type_): colunm name
+
+    Returns:
+        _type_: pd.DataFrame()
+    """
+    try:
+        data = pd.read_parquet(path_out)
+        lastest_data_date = data["time"].max()
+    except Exception as e:
+        get_full_data(path_out, path_ticker, dictionary)
+        data = pd.read_parquet(path_out)
+        lastest_data_date = data["time"].max()
+
     today = get_past_Friday()
     tickers = get_ticker(path_ticker, dictionary)
-    lastest_data_date = data["time"].max()
     if lastest_data_date.strftime("%Y-%m-%d") < today:
         lastest_data_date = lastest_data_date + pd.offsets.DateOffset(
             1
