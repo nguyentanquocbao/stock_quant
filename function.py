@@ -6,7 +6,7 @@ import os
 import pyarrow as pa
 import pyarrow.parquet as pq
 import time
-
+import pytz
 
 def get_ticker(path, dictionary) -> pd.DataFrame:
     """_summary_
@@ -20,11 +20,13 @@ def get_ticker(path, dictionary) -> pd.DataFrame:
         data = pd.read_parquet(path)
         data = update_ticker(data, path, dictionary)
     except Exception as e:
+        print("getting all ticker again", e)
         get_full_ticker(path, dictionary)
+        data = pd.read_parquet(path)
     return data
 
 
-def update_ticker(ticker, path, dictionary):
+def update_ticker(ticker, path, dictionary) -> pd.DataFrame:
     """_summary_
     update and add removed flag if there is missing data
     Args:
@@ -37,53 +39,36 @@ def update_ticker(ticker, path, dictionary):
     stock = vn(show_log=False).stock(symbol="ABC", source="VCI")
     new_ticker = stock.listing.symbols_by_exchange()
     ticker.loc[
-        ~ticker[dictionary["ticker"]].isin(
-            new_ticker[dictionary["ticker"]]
-        ),
+        ~ticker[dictionary["ticker"]].isin(new_ticker[dictionary["ticker"]]),
         "dropped",
     ] = datetime.today()
-    new_ticker = new_ticker[
-        ~new_ticker[dictionary["ticker"]].isin(
-            ticker[dictionary["ticker"]]
-        )
-    ]
+    new_ticker = new_ticker[~new_ticker[dictionary["ticker"]].
+                            isin(ticker[dictionary["ticker"]])]
     if new_ticker.shape[0] > 0:
         for i in new_ticker[dictionary["ticker"]]:
             try:
                 new_ticker.loc[
                     new_ticker[dictionary["ticker"]] == i,
                     "total_outstanding",
-                ] = stock.trading.price_board([i])[
-                    dictionary["share_outstanding"][0]
-                ][
-                    dictionary["share_outstanding"][1]
-                ][
-                    0
-                ]
+                ] = stock.trading.price_board(
+                    [i])[dictionary["share_outstanding"][0]][
+                        dictionary["share_outstanding"][1]][0]
             except Exception as e:
                 print(i, e)
         ticker = pd.concat([ticker, new_ticker])
         print("updated")
         shutil.rmtree(path)
         print(f"{path} has been removed.")
-        ticker.to_parquet(
-            path, index=False, partition_cols=[dictionary("exchange")]
-        )
+        ticker.to_parquet(path, index=False)
     return ticker
 
 
-def get_full_ticker(path, dictionary):
+def get_full_ticker(path, dictionary) -> None:
     """_summary_
     create whole new ticker list
     Args:
         path (_type_): _description_
     """
-    if os.path.exists(path):
-        # Remove the directory or file
-        shutil.rmtree(path)
-        print(f"{path} has been removed.")
-    else:
-        print(f"{path} does not exist.")
     stock = vn(show_log=False).stock(symbol="ABC", source="VCI")
     new_ticker = stock.listing.symbols_by_exchange()
     for i in new_ticker[dictionary["ticker"]]:
@@ -91,27 +76,28 @@ def get_full_ticker(path, dictionary):
             new_ticker.loc[
                 new_ticker[dictionary["ticker"]] == i,
                 "total_outstanding",
-            ] = stock.trading.price_board([i])[
-                dictionary["share_outstanding"][0]
-            ][
-                dictionary["share_outstanding"][1]
-            ][
-                0
-            ]
+            ] = stock.trading.price_board(
+                [i])[dictionary["share_outstanding"][0]][
+                    dictionary["share_outstanding"][1]][0]
             time.sleep(
-                1
-            )  # api might not respond when the request speed is too high
+                1)  # api might not respond when the request speed is too high
 
         except Exception as e:
             print(i, e)
-    new_ticker.to_parquet(
-        path, index=False, partition_cols=[dictionary["exchange"]]
-    )
+    if os.path.exists(path):
+        # Remove the directory or file
+        shutil.rmtree(path)
+        print(f"{path} has been removed.")
+    else:
+        print(f"{path} does not exist.")
+    new_ticker.to_parquet(path,
+                          index=False,
+                          partition_cols=[dictionary["exchange"]])
 
 
-def read_1_ticker(ticker, start_date, end_date, dictionary):
+def read_1_ticker(ticker, start_date, end_date, dictionary) -> pd.DataFrame:
     """_summary_
-    read data for 1 ticker
+    read data daily for 1 ticker
     Args:
         ticker (_type_): ticker name
         start_date (_type_):
@@ -121,13 +107,15 @@ def read_1_ticker(ticker, start_date, end_date, dictionary):
     Returns:
         _type_: _description_
     """
-    stock = (
-        vn(show_log=False)
-        .stock(symbol=ticker, source=dictionary["source"])
-        .quote.history(start=start_date, end=end_date, interval="1D")
-    )
-    return stock
-
+    return  (vn(show_log=False).stock(
+        symbol=ticker,
+        source=dictionary["source"]).quote.history(start=start_date,
+                                                    end=end_date,
+                                                    interval="1D"))
+def read_1_ticker_intra(ticker,dictionary):
+    return (vn(show_log=False).stock(
+        symbol=ticker,
+        source=dictionary['source']).quote.intraday(symbol=ticker,page_size=10000000, show_log=False))
 
 def get_past_Friday() -> datetime.date:
     """_summary_
@@ -135,8 +123,8 @@ def get_past_Friday() -> datetime.date:
     Returns:
         _type_: _description_
     """
-    date0 = datetime.today().date()
-    while date0.weekday() != 4:  # 5 = Saturday, 6 = Sunday
+    date0 = datetime.today().date()-pd.offsets.DateOffset(1)
+    while date0.weekday() != 4:  # 5 = Saturday, 4 = Friday
         date0 -= pd.offsets.DateOffset(1)
     return date0.strftime("%Y-%m-%d")
 
@@ -152,13 +140,11 @@ def get_full_data(path_ticker, path_out, dictionary):
     fal_tick = []
     tickers = get_ticker(path_ticker, dictionary)
     data = pd.DataFrame()
-    for tick, ex in zip(
-        tickers[dictionary["ticker"]], tickers[dictionary["exchange"]]
-    ):
+    for tick, ex in zip(tickers[dictionary["ticker"]],
+                        tickers[dictionary["exchange"]]):
         try:
-            temp = read_1_ticker(
-                tick, "2013-01-01", get_past_Friday(), dictionary
-            )
+            temp = read_1_ticker(tick, "2013-01-01", get_past_Friday(),
+                                dictionary)
             temp["ticker"] = tick
             temp["exchange"] = ex
             data = pd.concat([data, temp], axis=0)
@@ -173,7 +159,8 @@ def get_full_data(path_ticker, path_out, dictionary):
 
 def get_data(path_out, path_ticker, dictionary) -> pd.DataFrame:
     """_summary_
-    normal functiont to read all data, only download full when run the first time, the later use would have it appended into current path
+    * Function to read all data, only download full when run the first time, the later use would have it appended into current path
+    * Function would update data to nearest Friday (weekly) - not included to day.
     Args:
         path_out (_type_): path to append or first time save dât
         path_ticker (_type_): ticker list path
@@ -186,16 +173,15 @@ def get_data(path_out, path_ticker, dictionary) -> pd.DataFrame:
         data = pd.read_parquet(path_out)
         lastest_data_date = data["time"].max()
     except Exception as e:
+        print("Getting full data")
         get_full_data(path_out, path_ticker, dictionary)
         data = pd.read_parquet(path_out)
         lastest_data_date = data["time"].max()
 
-    today = get_past_Friday()
+    latest_friday = get_past_Friday()
     tickers = get_ticker(path_ticker, dictionary)
-    if lastest_data_date.strftime("%Y-%m-%d") < today:
-        lastest_data_date = lastest_data_date + pd.offsets.DateOffset(
-            1
-        )
+    if lastest_data_date.strftime("%Y-%m-%d") < latest_friday:
+        lastest_data_date = lastest_data_date + pd.offsets.DateOffset(1)
         data = pd.DataFrame()
         fal_tick = []
         for tick, ex in zip(tickers.symbol, tickers.exchange):
@@ -203,15 +189,13 @@ def get_data(path_out, path_ticker, dictionary) -> pd.DataFrame:
                 temp = read_1_ticker(
                     tick,
                     lastest_data_date.strftime("%Y-%m-%d"),
-                    today(),
+                    latest_friday,
                 )
                 temp["ticker"] = tick
                 temp["exchange"] = ex
                 data = pd.concat([data, temp], axis=0)
             except Exception as e:
                 fal_tick.append(tick)
-        print(data.head(2))
-        print(data["ticker"].value_counts())
         if os.path.exists(path_out):
             # Remove the directory or file
             shutil.rmtree(path_out)
@@ -220,6 +204,29 @@ def get_data(path_out, path_ticker, dictionary) -> pd.DataFrame:
         pq.write_to_dataset(table, path_out)
     return data
 
+
+def read_intra_data(path_ticker, path, dictionary, update=False):
+    vietnam_time = datetime.now(pytz.timezone('Asia/Ho_Chi_Minh')).time()
+    target_time = datetime.strptime('16:00:00', '%H:%M:%S').time()
+    if vietnam_time > target_time and update:
+        update_intra_data(path_ticker, path, dictionary)
+    data = pd.read_parquet(path)
+    return data
+
+
+def update_intra_data(path_ticker, path, dictionary):
+    tickers = get_ticker(path_ticker, dictionary)
+    fal_tick = []
+    for tick, ex in zip(tickers.symbol, tickers.exchange):
+        try:
+            temp = read_1_ticker_intra(tick, dictionary)
+            temp["ticker"] = tick
+            temp["exchange"] = ex
+            data = pd.concat([data, temp], axis=0)
+        except Exception as e:
+            fal_tick.append(tick)
+    table = pa.Table.from_pandas(data)
+    pq.write_to_dataset(table, path)
 
 if __name__ == "__main__":
     get_data()
