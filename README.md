@@ -23,5 +23,3 @@ The Stock Portfolio Optimizer and Performance Tracker is designed to help invest
 To install and run the project locally:
 ```shell
 git clone https://github.com/nguyentanquocbao/stock_quant
-cd stock-portfolio-optimizer
-pip install -r requirements.txt
