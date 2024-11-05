@@ -23,3 +23,7 @@ The Stock Portfolio Optimizer and Performance Tracker is designed to help invest
 To install and run the project locally:
 ```shell
 git clone https://github.com/nguyentanquocbao/stock_quant
+```
+## Usage
+- ** Use data_temp.ipynb notebook file to get time-series analyzation in Vietnamese stock market
+- ** Use function.py to get update and pre-processing data
