@@ -6,8 +6,18 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import plotly.express as px
 import plotly.graph_objects as go
+import statsmodels.formula.api as smf
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+
 from bao import *
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.ar_model import AutoReg
 from vnstock3 import Vnstock as vn
+from statsmodels.tsa.stattools import adfuller, kpss
+from statsmodels.graphics.tsaplots import plot_acf
+from scipy.stats.mstats import winsorize
+from sklearn.metrics import mean_squared_error
 
 
 def get_ticker(path, dictionary) -> pd.DataFrame:
@@ -26,6 +36,11 @@ def get_ticker(path, dictionary) -> pd.DataFrame:
         get_full_ticker(path, dictionary)
         data = pd.read_parquet(path)
     return data
+
+
+def plot_acf_0(data):
+    plot_acf(data, lags=15)
+    plt.show()
 
 
 def draw_SMA(data, col, windows) -> None:
@@ -463,5 +478,181 @@ def clean_daily_data(
     return stock_data
 
 
+def adf_test(series, significance_level=0.05):
+
+    result = adfuller(series)
+    adf_statistic, p_value, _, _, critical_values, _ = result
+
+    # Print ADF results
+    print("ADF Test Results:")
+    print("ADF Statistic:", adf_statistic)
+    print("p-value:", p_value)
+    for key, value in critical_values.items():
+        print(f"Critical Value ({key}): {value}")
+
+    # Make judgment based on p-value
+    if p_value < significance_level:
+        print(
+            "Judgment: The series is likely stationary (Reject null hypothesis)."
+        )
+    else:
+        print(
+            "Judgment: The series is likely non-stationary (Fail to reject null hypothesis)."
+        )
+    print("\n" + "=" * 40 + "\n")
+
+
+def AR_visualize(data, lag, period):
+    data = data[-period:]
+    ar_model = AutoReg(data, lags=lag).fit()
+    ar_predictions = ar_model.predict(start=1, end=period)
+    print(ar_model.pvalues)
+    print(ar_model.params)
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            y=data,
+            mode="lines",
+            name="Original Series",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            y=ar_predictions,
+            mode="lines",
+            name="AR(1) Predictions",
+            line=dict(color="red"),
+        )
+    )
+    fig.update_layout(
+        title="AR(1) Model Predictions",
+        xaxis_title="Time",
+        yaxis_title="Value",
+    )
+    fig.show()
+
+
+def calculate_mape(actual, predicted):
+    return np.mean(np.abs((actual - predicted) / actual)) * 100
+
+
+# Root Mean Square Error
+def calculate_rmse(actual, predicted):
+    return np.sqrt(mean_squared_error(actual, predicted))
+
+
+def kpss_test(series, significance_level=0.05):
+    result = kpss(series, regression="c")
+    kpss_statistic, p_value, _, critical_values = result
+
+    # Print KPSS results
+    print("KPSS Test Results:")
+    print("KPSS Statistic:", kpss_statistic)
+    print("p-value:", p_value)
+    for key, value in critical_values.items():
+        print(f"Critical Value ({key}): {value}")
+
+    # Make judgment based on p-value
+    if p_value < significance_level:
+        print(
+            "Judgment: The series is likely non-stationary (Reject null hypothesis)."
+        )
+    else:
+        print(
+            "Judgment: The series is likely stationary (Fail to reject null hypothesis)."
+        )
+    print("\n" + "=" * 40 + "\n")
+
+
+def ARIMA_visualize(data, orders, period, metric="aic"):
+    data = data[-period:]
+    metric_values = []  # Store metric values for each model
+    models = {}  # Dictionary to store fitted models for each order
+
+    # Loop through each order and fit the ARIMA model
+    for order in orders:
+        try:
+            # Fit the ARIMA model
+            arima_model = ARIMA(data, order=order).fit()
+            predictions = arima_model.predict(start=0, end=period - 1)
+
+            # Calculate the chosen metric
+            if metric == "mape":
+                metric_value = calculate_mape(data, predictions)
+            elif metric == "rmse":
+                metric_value = calculate_rmse(data, predictions)
+            elif metric == "aic":
+                metric_value = arima_model.aic
+            elif metric == "bic":
+                metric_value = arima_model.bic
+            else:
+                raise ValueError(
+                    "Invalid metric. Choose from 'mape', 'rmse', 'aic', or 'bic'."
+                )
+
+            # Store metric and model
+            metric_values.append(metric_value)
+            models[order] = arima_model
+
+            print(f"Order {order}: {metric.upper()} = {metric_value}")
+
+        except Exception as e:
+            print(
+                f"Error fitting ARIMA model with order {order}: {e}"
+            )
+            metric_values.append(
+                float("inf")
+            )  # Assign a high value if model fails
+
+    # Find the best model with the smallest metric value
+    best_index = metric_values.index(min(metric_values))
+    best_order = orders[best_index]
+    best_model = models[best_order]
+    best_predictions = best_model.predict(start=0, end=period - 1)
+
+    # Print best model details
+    print(f"\nBest Model Order: {best_order}")
+    print(f"Best Model {metric.upper()}:", metric_values[best_index])
+    print("P-values:", best_model.pvalues)
+    print("Parameters:", best_model.params)
+
+    # Visualization
+    fig = go.Figure()
+    # Original series as a bar chart
+    fig.add_trace(
+        go.Bar(
+            y=data,
+            name="Original Series",
+            marker=dict(color="blue"),
+        )
+    )
+    # ARIMA predictions of the best model as a line chart
+    fig.add_trace(
+        go.Scatter(
+            y=best_predictions,
+            mode="lines",
+            name=f"ARIMA{best_order} Predictions",
+            line=dict(color="red"),
+        )
+    )
+    fig.update_layout(
+        title=f"Best ARIMA Model (Order {best_order}) Predictions",
+        xaxis_title="Time",
+        yaxis_title="Value",
+    )
+    fig.show()
+
+    # Return the metric values and the best model order
+    return metric_values, best_order
+
+
 if __name__ == "__main__":
-    update_intra_data()
+    ## update data process
+    from static import *
+    from bao import *
+
+    with open(path_dictionary, "r") as a:
+        name_dict = json.load(a)
+    df = read_intra_data(
+        path_ticker, path_transaction, name_dict, update=True
+    )
