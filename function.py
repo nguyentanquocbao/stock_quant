@@ -50,25 +50,16 @@ def draw_SMA(data: pd.DataFrame, col: str, windows: list) -> None:
 
     for i in windows:
         data[col + str(i)] = data[col].rolling(window=i).mean()
-    fig = go.Figure()
-    for i in windows:
-        fig.add_trace(
-            go.Scatter(
-                x=data["time"],  # Adjust if your index is not time
-                y=data[col + str(i)],
-                mode="lines",
-                name=str(i),
-            )
-        )
+        plt.plot(data["time"], data[col + str(i)], label=str(i))
 
-        # Update layout
-        fig.update_layout(
-            title="Simple moving average return",
-            xaxis_title="Time",
-            yaxis_title="Rolling Mean Return",
-            showlegend=True,
-        )
-    fig.show()
+        # Customize plot elements
+    plt.xlabel("Time")
+    plt.ylabel("Rolling Mean Return")
+    plt.title("Simple moving average return")
+    plt.legend()
+    plt.grid(True)  # Add grid for better readability
+
+    plt.show()
 
 
 def draw_cummulative(
@@ -82,27 +73,14 @@ def draw_cummulative(
         windows (list): list of int (window period)
     """
 
+    fig, ax = plt.subplots()
     for i in windows:
         data[col + str(i)] = data[col].rolling(window=i).sum()
-    fig = go.Figure()
-    for i in windows:
-        fig.add_trace(
-            go.Scatter(
-                x=data["time"],  # Adjust if your index is not time
-                y=data[col + str(i)],
-                mode="lines",
-                name=str(i),
-            )
-        )
+        ax.plot(data["time"], data[col + str(i)], label=str(i))
 
-        # Update layout
-        fig.update_layout(
-            title="Cumulative return rolling back",
-            xaxis_title="Time",
-            yaxis_title="Rolling Mean Return",
-            showlegend=True,
-        )
-    fig.show()
+    ax.legend()
+
+    plt.show()
 
 
 def draw_EMA(data: pd.DataFrame, col: str, windows: list) -> None:
@@ -115,21 +93,16 @@ def draw_EMA(data: pd.DataFrame, col: str, windows: list) -> None:
     """
     for i in windows:
         data[col + str(i)] = data[col].ewm(span=i, adjust=True).mean()
-    fig = go.Figure()
-    for i in windows:
-        fig.add_trace(
-            go.Scatter(
-                x=data["time"],  # Adjust if your index is not time
-                y=data[col + str(i)],
-                mode="lines",
-                name=str(i),
-            )
-        )
-        # Update layout
-        fig.update_layout(
-            title="Exponential Moving Average Return", showlegend=True
-        )
-    fig.show()
+        plt.plot(data["time"], data[col + str(i)], label=str(i))
+
+        # Customize plot elements
+    plt.xlabel("Time")
+    plt.ylabel("Rolling Mean Return")
+    plt.title("Simple moving average return")
+    plt.legend()
+    plt.grid(True)  # Add grid for better readability
+
+    plt.show()
 
 
 def update_ticker(
@@ -753,7 +726,9 @@ def real_time_AR_visualize(
     lag: int,
 ) -> pd.DataFrame:
     """_summary_
-    get predicted data and visualization of AR model
+    Get predicted data and visualization of AR model
+    The function would predict on each time point on only data that available in that time point instead of using all data to detect changes. In other words, each prediction might use different model (parameters) to predict, only models' hyperpareter is the same.
+    TODO: add function to check for model parameter and quality over all timepoint
     Args:
         data (pd.DataFrame): data frame that contain time and value columns
         val_col (str): name of value column
@@ -783,30 +758,31 @@ def real_time_AR_visualize(
         data[[val_col, time_col]], how="inner", on=time_col
     )
     predicted.set_index(time_col, inplace=True, drop=True)
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=predicted.index,
-            y=predicted[val_col],
-            mode="lines",
-            name="Original Series",
-        )
+    fig, ax = plt.subplots()
+
+    # Plot the original series
+    ax.plot(
+        predicted.index, predicted[val_col], label="Original Series"
     )
-    fig.add_trace(
-        go.Scatter(
-            x=predicted.index,
-            y=predicted["predict"],
-            mode="lines",
-            name=f"AR( {lag} ) Predictions",
-            line=dict(color="red"),
-        )
+
+    # Plot the AR model predictions
+    ax.plot(
+        predicted.index,
+        predicted["predict"],
+        label=f"AR( {lag} ) Predictions",
+        color="red",
     )
-    fig.update_layout(
-        title=f"AR( {lag} ) Model Predictions",
-        xaxis_title="Time",
-        yaxis_title="Value",
-    )
-    fig.show()
+
+    # Add title and labels
+    ax.set_title(f"AR( {lag} ) Model Predictions")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Value")
+
+    # Add legend
+    ax.legend()
+
+    # Show the plot
+    plt.show()
     return predicted
 
 
@@ -857,7 +833,9 @@ def real_time_ARIMA_visualize(
     para=False,
 ) -> pd.DataFrame:
     """_summary_
-    get predicted data and visualization of AR model
+    get predicted data and visualization of ARIMA model
+        The function would predict on each time point on only data that available in that time point instead of using all data to detect changes. In other words, each prediction might use different model (parameters) to predict, only models' hyperpareter is the same.
+    TODO: add function to check for model parameter and quality over all timepoint
     Args:
         data (pd.DataFrame): data frame that contain time and value columns
         val_col (str): name of value column
@@ -904,30 +882,31 @@ def real_time_ARIMA_visualize(
         data[[val_col, time_col]], how="inner", on=time_col
     )
     predicted.set_index(time_col, inplace=True, drop=True)
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=predicted.index,
-            y=predicted[val_col],
-            mode="lines",
-            name="Original Series",
-        )
+    fig, ax = plt.subplots()
+
+    # Plot the original series
+    ax.plot(
+        predicted.index, predicted[val_col], label="Original Series"
     )
-    fig.add_trace(
-        go.Scatter(
-            x=predicted.index,
-            y=predicted["predict"],
-            mode="lines",
-            name=f"AR( {order} ) Predictions",
-            line=dict(color="red"),
-        )
+
+    # Plot the AR model predictions
+    ax.plot(
+        predicted.index,
+        predicted["predict"],
+        label=f"AR( {order} ) Predictions",
+        color="red",
     )
-    fig.update_layout(
-        title=f"AR( {order} ) Model Predictions",
-        xaxis_title="Time",
-        yaxis_title="Value",
-    )
-    fig.show()
+
+    # Add title and labels
+    ax.set_title(f"AR( {order} ) Model Predictions")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Value")
+
+    # Add legend
+    ax.legend()
+
+    # Show the plot
+    plt.show()
     return predicted
 
 
