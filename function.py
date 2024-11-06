@@ -11,6 +11,7 @@ import statsmodels.api as sm
 import matplotlib.pyplot as plt
 
 from bao import *
+from static import *
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.ar_model import AutoReg
 from vnstock3 import Vnstock as vn
@@ -20,11 +21,11 @@ from scipy.stats.mstats import winsorize
 from sklearn.metrics import mean_squared_error
 
 
-def get_ticker(path, dictionary) -> pd.DataFrame:
+def get_ticker(path: str, dictionary: dict) -> pd.DataFrame:
     """_summary_
     Update and return stock list, when there is no data in the given path --> start download the whole dataset
     Args:
-        path (_type_): path saved parquet data
+        path (str): path saved parquet data
     Returns:
         _type_: pd.dataframe: stock indentifier data
     """
@@ -38,18 +39,13 @@ def get_ticker(path, dictionary) -> pd.DataFrame:
     return data
 
 
-def plot_acf_0(data):
-    plot_acf(data, lags=15)
-    plt.show()
-
-
-def draw_SMA(data, col, windows) -> None:
+def draw_SMA(data: pd.DataFrame, col: str, windows: list) -> None:
     """_summary_
     give visual for simple moving average with given list of windows
     Args:
-        data (_type_): dataframe
-        col (_type_): value column
-        windows (_type_): list of window period
+        data (pd.DataFrame): dataframe contain data
+        col (str): value column
+        windows (list): list of window period
     """
 
     for i in windows:
@@ -75,13 +71,15 @@ def draw_SMA(data, col, windows) -> None:
     fig.show()
 
 
-def draw_cummulative(data, col, windows) -> None:
+def draw_cummulative(
+    data: pd.DataFrame, col: str, windows: list
+) -> None:
     """_summary_
     give visual for simple moving average with given list of windows
     Args:
-        data (_type_): dataframe
-        col (_type_): value column
-        windows (_type_): list of window period
+        data (dataframe): dataframe
+        col (str): value column
+        windows (list): list of int (window period)
     """
 
     for i in windows:
@@ -107,13 +105,13 @@ def draw_cummulative(data, col, windows) -> None:
     fig.show()
 
 
-def draw_EMA(data, col, windows) -> None:
+def draw_EMA(data: pd.DataFrame, col: str, windows: list) -> None:
     """_summary_
     Give visualization for Exponential Moving Average
     Args:
-        data (_type_): dataframe
-        col (_type_): value column
-        windows (_type_): list of window period
+        data (pd.DataFrame): dataframe
+        col (str): value column
+        windows (list): list of window period (int)
     """
     for i in windows:
         data[col + str(i)] = data[col].ewm(span=i, adjust=True).mean()
@@ -134,12 +132,14 @@ def draw_EMA(data, col, windows) -> None:
     fig.show()
 
 
-def update_ticker(ticker, path, dictionary) -> pd.DataFrame:
+def update_ticker(
+    ticker: str, path: str, dictionary: dict
+) -> pd.DataFrame:
     """_summary_
     update and add removed flag if there is missing data
     Args:
-        ticker (_type_): old data
-        path (_type_): path_for saving
+        ticker (pd.DataFrame): data of stored ticker information
+        path (str): path_for saving
 
     Returns:
         _type_: full data with new tickers
@@ -179,11 +179,11 @@ def update_ticker(ticker, path, dictionary) -> pd.DataFrame:
     return ticker
 
 
-def get_full_ticker(path, dictionary) -> None:
+def get_full_ticker(path: str, dictionary: dict) -> None:
     """_summary_
     create whole new ticker list
     Args:
-        path (_type_): _description_
+        path (str): path to save ticker information
     """
     stock = vn(show_log=False).stock(symbol="ABC", source="VCI")
     new_ticker = stock.listing.symbols_by_exchange()
@@ -217,15 +217,18 @@ def get_full_ticker(path, dictionary) -> None:
 
 
 def read_1_ticker(
-    ticker, start_date, end_date, dictionary
+    ticker: str,
+    start_date: datetime.strftime,
+    end_date: datetime.strftime,
+    dictionary: dict,
 ) -> pd.DataFrame:
     """_summary_
     read data daily for 1 ticker
     Args:
-        ticker (_type_): ticker name
-        start_date (_type_):
-        end_date (_type_):
-        dictionary (_type_): dictionary for column name
+        ticker (str): ticker name
+        start_date (str):
+        end_date (str):
+        dictionary (dict): dictionary for column name
 
     Returns:
         _type_: _description_
@@ -237,12 +240,12 @@ def read_1_ticker(
     )
 
 
-def read_1_ticker_intra(ticker, dictionary) -> None:
+def read_1_ticker_intra(ticker: str, dictionary: dict) -> None:
     """_summary_
     Read and save intradata daily
     Args:
-        ticker (_type_): ticker list
-        dictionary (_type_): column name
+        ticker (str): ticker list
+        dictionary (dict): column name
 
     Returns:
         _type_: None
@@ -260,7 +263,7 @@ def get_past_Friday() -> datetime.date:
     """_summary_
     create the lastest Friday in the past to get new data when needed
     Returns:
-        _type_: _description_
+        _type_: datetime.datetime.strftime("%Y-%m-%d")
     """
     date0 = datetime.today().date() - pd.offsets.DateOffset(1)
     while date0.weekday() != 4:  # 5 = Saturday, 4 = Friday
@@ -268,13 +271,13 @@ def get_past_Friday() -> datetime.date:
     return date0.strftime("%Y-%m-%d")
 
 
-def get_full_data(path_ticker, path_out, dictionary):
+def get_full_data(path_ticker: str, path_out: str, dictionary: dict):
     """_summary_
     down load whole data for all given ticker list
     Args:
-        path_ticker (_type_): for ticker parquet files
-        path_out (_type_): path for saving data by appending parquet data
-        dictionary (_type_): column names
+        path_ticker (str): for ticker parquet files
+        path_out (str): path for saving data by appending parquet data
+        dictionary (dict): column names
     """
     fal_tick = []
     tickers = get_ticker(path_ticker, dictionary)
@@ -297,7 +300,13 @@ def get_full_data(path_ticker, path_out, dictionary):
     print("sucessful create full data")
 
 
-def clean_backup_data(path, clean=False) -> None:
+def clean_backup_data(path: str, clean=False) -> None:
+    """_summary_
+
+    Args:
+        path (str, optional): path to clean and backup. Defaults to ''.
+        clean (bool, optional): clean=True mean remove the whole path, otherwise just backup the data to a subfolder named "backup"+current name .Defaults to False.
+    """
     if os.path.exists(path):
         # Remove the directory or file
         source_dir = os.path.dirname(path)
@@ -320,14 +329,16 @@ def clean_backup_data(path, clean=False) -> None:
             print(f"{path} has been removed.")
 
 
-def get_data(path_out, path_ticker, dictionary) -> pd.DataFrame:
+def get_data(
+    path_out: str, path_ticker: str, dictionary: dict
+) -> pd.DataFrame:
     """_summary_
     * Function to read all data, only download full when run the first time, the later use would have it appended into current path
     * Function would update data to nearest Friday (weekly) - not included to day.
     Args:
-        path_out (_type_): path to append or first time save dât
-        path_ticker (_type_): ticker list path
-        dictionary (_type_): colunm name
+        path_out (str): path to append or first time save dât
+        path_ticker (str): ticker list path
+        dictionary (dict): colunm name
 
     Returns:
         _type_: pd.DataFrame()
@@ -367,13 +378,15 @@ def get_data(path_out, path_ticker, dictionary) -> pd.DataFrame:
     return data, tickers
 
 
-def read_intra_data(path_ticker, path, dictionary, update=False):
+def read_intra_data(
+    path_ticker: str, path: str, dictionary: dict, update=False
+):
     """_summary_
     Get data set of transaction if it's pass 4pm and not in weekends, update the whole dataset when set update=True
     Args:
-        path_ticker (_type_): path of ticker parquet
-        path (_type_): path of intraday data
-        dictionary (_type_): column name
+        path_ticker (str): path of ticker parquet
+        path (str): path of intraday data
+        dictionary (dict): column name
         update (bool, optional): need update or not . Defaults to False.
     Returns:
         _type_: pd.DataFrame
@@ -394,13 +407,13 @@ def read_intra_data(path_ticker, path, dictionary, update=False):
     return data
 
 
-def update_intra_data(path_ticker, path, dictionary):
+def update_intra_data(path_ticker: str, path: str, dictionary: dict):
     """_summary_
     update intrad day data for all tickers
     Args:
-        path_ticker (_type_): path of ticker parquet storage
-        path (_type_): path of instraday storage
-        dictionary (_type_): column name
+        path_ticker (str): path of ticker parquet storage
+        path (str): path of instraday storage
+        dictionary (dict): column name
     """
     tickers = get_ticker(path_ticker, dictionary)
     fal_tick = []
@@ -419,15 +432,18 @@ def update_intra_data(path_ticker, path, dictionary):
 
 
 def clean_daily_data(
-    path_stock_data, path_ticker, dictionary
+    path_stock_data: str,
+    path_ticker: str,
+    dictionary=dict,
 ) -> pd.DataFrame:
     """_summary_
-    Data cleaning for daily stock data
     Args:
-        data_in (_type_): list contain 2 dataframe: stock data and stock info
-        dictionary (_type_): dictionary for some columns's name that might change due to vnstock
+        path_stock_data (str, optional): _description_. Defaults to path_stock_data.
+        path_ticker (str, optional): _description_. Defaults to path_ticker.
+        dictionary (dict, optional): _description_. Defaults to {}.
+
     Returns:
-        _type_: _description_
+        pd.DataFrame: _description_
     """
     stock_data, stock_info = get_data(
         path_stock_data, path_ticker, dictionary
@@ -478,8 +494,12 @@ def clean_daily_data(
     return stock_data
 
 
-def adf_test(series, significance_level=0.05):
-
+def adf_test(series: pd.Series, significance_level: float = 0.05):
+    """_summary_
+    Args:
+        series (series): series data need to be test, series of float
+        significance_level (float, optional): _description_. Defaults to 0.05.
+    """
     result = adfuller(series)
     adf_statistic, p_value, _, _, critical_values, _ = result
 
@@ -502,7 +522,16 @@ def adf_test(series, significance_level=0.05):
     print("\n" + "=" * 40 + "\n")
 
 
-def AR_visualize(data, lag, period):
+def AR_visualize(data: pd.Series, lag: int, period: int):
+    """_summary_
+    Create estimation of whole data set
+    Args:
+        data (Series): dataframe input
+        lag (int):number of lag period used
+        period (int): number of data trading days to be used to estimate
+    Returns:
+        _type_: None
+    """
     data = data[-period:]
     ar_model = AutoReg(data, lags=lag).fit()
     ar_predictions = ar_model.predict(start=1, end=period)
@@ -532,16 +561,42 @@ def AR_visualize(data, lag, period):
     fig.show()
 
 
-def calculate_mape(actual, predicted):
+def calculate_mape(actual: pd.Series, predicted: pd.Series):
+    """_summary_
+    comute mean absolute percentage error
+    Args:
+        actual (series):
+        predicted (series):
+
+    Returns:
+        _type_:
+    """
     return np.mean(np.abs((actual - predicted) / actual)) * 100
 
 
 # Root Mean Square Error
-def calculate_rmse(actual, predicted):
+def calculate_rmse(actual: pd.Series, predicted: pd.Series):
+    """_summary_
+    compute mean squared error of the prediction
+    Args:
+        actual (series):
+        predicted (series):
+
+    Returns:
+        _type_: value
+    """
     return np.sqrt(mean_squared_error(actual, predicted))
 
 
-def kpss_test(series, significance_level=0.05):
+def kpss_test(series: pd.Series, significance_level=0.05):
+    """_summary_
+    Test for stationary with:
+        H0: given series is not stationary
+    Args:
+        series (series): input series
+        significance_level (float, optional):  Defaults to 0.05.
+    """
+
     result = kpss(series, regression="c")
     kpss_statistic, p_value, _, critical_values = result
 
@@ -564,7 +619,23 @@ def kpss_test(series, significance_level=0.05):
     print("\n" + "=" * 40 + "\n")
 
 
-def ARIMA_visualize(data, orders, period, metric="aic"):
+def ARIMA_visualize(
+    data: pd.DataFrame, orders: list, period: int, metric="aic"
+):
+    """_summary_
+    Choose the best parameter in orders to create estimation of whole data set
+    Args:
+        data (pd.DataFrame): dataframe input
+        orders (list): a list of parameters for [autoregressive, differencing term, moving average]
+        period (int): number of data trading days to be used to estimate
+        metric (str, optional): _description_. Defaults to "aic", other choice are: 'bic', 'rmse' and 'mape'
+
+    Raises:
+        ValueError: error when esimate by ARIMA function
+
+    Returns:
+        _type_: best order
+    """
     data = data[-period:]
     metric_values = []  # Store metric values for each model
     models = {}  # Dictionary to store fitted models for each order
@@ -644,6 +715,99 @@ def ARIMA_visualize(data, orders, period, metric="aic"):
 
     # Return the metric values and the best model order
     return metric_values, best_order
+
+
+def AR_forecast_1_step(
+    data: pd.DataFrame,
+    val_col: str,
+    range: int,
+    time0: datetime,
+    time_col: str,
+    lag: int,
+) -> pd.DataFrame:
+    """_summary_
+    Function to forecast by AR with given condition
+    Args:
+        data (pd.DataFrame): data frame that contain time and value columns
+        val_col (str): name of value column
+        range (int): trend time to rollback for each estimation
+        time0 (datetime): time point to begin rollback
+        time_col (str): time column name
+        lag (int): number of lag used to put in model
+    Returns:
+        pd.DataFrame: dataframe that contain predicted values
+    """
+    temp = data[data[time_col] <= time0]
+    temp = temp.tail(range)
+    ar_model = AutoReg(temp[val_col], lags=lag).fit()
+    return pd.DataFrame(
+        {"time": time0, "predict": ar_model.forecast(steps=1)}
+    )
+
+
+def real_time_AR_visualize(
+    data: pd.DataFrame,
+    val_col: str,
+    time_col: str,
+    range: int,
+    lag: int,
+) -> pd.DataFrame:
+    """_summary_
+    get predicted data and visualization of AR model
+    Args:
+        data (pd.DataFrame): data frame that contain time and value columns
+        val_col (str): name of value column
+        range (int): trend time to rollback for each estimation
+        time0 (datetime): time point to begin rollback
+        time_col (str): time column name
+        lag (int): number of lag used to put in model
+        data (pd.DataFrame): _description_
+    Returns:
+        pd.DataFrame: dataframe that contain predicted values for all given dates
+    """
+    data.sort_values(by=time_col, inplace=True)
+    time_list = data[time_col][range:]
+    predicted = pd.DataFrame()
+    for i in time_list:
+
+        predicted = pd.concat(
+            [
+                predicted,
+                AR_forecast_1_step(
+                    data, val_col, range, i, time_col, lag
+                ),
+            ],
+            axis=0,
+        )
+    predicted = predicted.merge(
+        data[[val_col, time_col]], how="inner", on=time_col
+    )
+    predicted.set_index(time_col, inplace=True, drop=True)
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=predicted.index,
+            y=predicted[val_col],
+            mode="lines",
+            name="Original Series",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=predicted.index,
+            y=predicted["predict"],
+            mode="lines",
+            name=f"AR( {lag} ) Predictions",
+            line=dict(color="red"),
+        )
+    )
+    fig.update_layout(
+        title=f"AR( {lag} ) Model Predictions",
+        xaxis_title="Time",
+        yaxis_title="Value",
+    )
+    fig.show()
+    return predicted
 
 
 if __name__ == "__main__":
