@@ -810,6 +810,127 @@ def real_time_AR_visualize(
     return predicted
 
 
+def ARIMA_forecast_1_step(
+    data: pd.DataFrame,
+    time_col: str,
+    time0: datetime,
+    val_col: str,
+    order: list,
+) -> pd.DataFrame:
+    """_summary_
+    Function to forecast by AR with given condition
+    Args:
+        data (pd.DataFrame): data frame that contain time and value columns
+        val_col (str): name of value column
+        range (int): trend time to rollback for each estimation
+        time0 (datetime): time point to begin rollback
+        time_col (str): time column name
+        lag (int): number of lag used to put in model
+    Returns:
+        pd.DataFrame: dataframe that contain predicted values
+    """
+    try:
+        data[time_col] = pd.to_datetime(
+            data[time_col], errors="coerce"
+        )
+        data = data.set_index(time_col, drop=True)
+        arima_model = ARIMA(data[val_col].values, order=order).fit()
+        return pd.DataFrame(
+            {
+                time_col: time0,
+                "predict": arima_model.forecast(steps=1),
+            }
+        )
+    except Exception as e:
+        print(f"error in {time0}", e)
+
+
+from joblib import Parallel, delayed
+
+
+def real_time_ARIMA_visualize(
+    data: pd.DataFrame,
+    val_col: str,
+    time_col: str,
+    range: int,
+    order: list,
+    para=False,
+) -> pd.DataFrame:
+    """_summary_
+    get predicted data and visualization of AR model
+    Args:
+        data (pd.DataFrame): data frame that contain time and value columns
+        val_col (str): name of value column
+        range (int): trend time to rollback for each estimation
+        time0 (datetime): time point to begin rollback
+        time_col (str): time column name
+        lag (int): number of lag used to put in model
+        data (pd.DataFrame): _description_
+    Returns:
+        pd.DataFrame: dataframe that contain predicted values for all given dates
+    """
+    data.sort_values(by=time_col, inplace=True)
+    time_list = data[time_col][range:]
+    if not para:
+        predicted = pd.DataFrame()
+        for i in time_list:
+
+            predicted = pd.concat(
+                [
+                    predicted,
+                    ARIMA_forecast_1_step(
+                        data[data[time_col] <= i].tail(range),
+                        time_col,
+                        i,
+                        val_col,
+                        order,
+                    ),
+                ],
+                axis=0,
+            )
+    else:
+        predicted = Parallel(n_jobs=-1)(
+            delayed(ARIMA_forecast_1_step)(
+                data[data[time_col] <= i].tail(range),
+                time_col,
+                i,
+                val_col,
+                order,
+            )
+            for i in time_list
+        )
+        predicted = pd.concat(predicted, axis=0)
+    predicted = predicted.merge(
+        data[[val_col, time_col]], how="inner", on=time_col
+    )
+    predicted.set_index(time_col, inplace=True, drop=True)
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=predicted.index,
+            y=predicted[val_col],
+            mode="lines",
+            name="Original Series",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=predicted.index,
+            y=predicted["predict"],
+            mode="lines",
+            name=f"AR( {order} ) Predictions",
+            line=dict(color="red"),
+        )
+    )
+    fig.update_layout(
+        title=f"AR( {order} ) Model Predictions",
+        xaxis_title="Time",
+        yaxis_title="Value",
+    )
+    fig.show()
+    return predicted
+
+
 if __name__ == "__main__":
     ## update data process
     from static import *
