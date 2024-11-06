@@ -25,5 +25,5 @@ To install and run the project locally:
 git clone https://github.com/nguyentanquocbao/stock_quant
 ```
 ## Usage
-- **Use** data_temp.ipynb notebook file to get time-series analyzation in Vietnamese stock market
+- **Use** market_nalysis.ipynb notebook file to get time-series analyzation in Vietnamese stock market: including trend analysis, winsorize, stationary test, and simple visualization by SMA, EMA, cumulative log return, and simple AR & ARIMA visualization
 - **Use** function.py to get update and pre-processing data
