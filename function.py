@@ -98,7 +98,7 @@ def draw_EMA(data: pd.DataFrame, col: str, windows: list) -> None:
         # Customize plot elements
     plt.xlabel("Time")
     plt.ylabel("Rolling Mean Return")
-    plt.title("Simple moving average return")
+    plt.title("Exponential Mean Return")
     plt.legend()
     plt.grid(True)  # Add grid for better readability
 
