@@ -79,7 +79,7 @@ def draw_cummulative(
         ax.plot(data["time"], data[col + str(i)], label=str(i))
 
     ax.legend()
-
+    plt.title("Cummulative Log Return")
     plt.show()
 
 
