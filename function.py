@@ -27,7 +27,7 @@ def get_ticker(path: str, dictionary: dict) -> pd.DataFrame:
     Args:
         path (str): path saved parquet data
     Returns:
-        _type_: pd.dataframe: stock indentifier data
+        _type_: pd.dataframe: stock identifier data
     """
     try:
         data = pd.read_parquet(path)
@@ -62,7 +62,7 @@ def draw_SMA(data: pd.DataFrame, col: str, windows: list) -> None:
     plt.show()
 
 
-def draw_cummulative(
+def draw_cumulative(
     data: pd.DataFrame, col: str, windows: list
 ) -> None:
     """_summary_
@@ -79,7 +79,7 @@ def draw_cummulative(
         ax.plot(data["time"], data[col + str(i)], label=str(i))
 
     ax.legend()
-    plt.title("Cummulative Log Return")
+    plt.title("Cumulative Log Return")
     plt.show()
 
 
@@ -117,7 +117,9 @@ def update_ticker(
     Returns:
         _type_: full data with new tickers
     """
-    stock = vn(show_log=False).stock(symbol="ABC", source="VCI")
+    stock = vn(show_log=False).stock(
+        symbol="ABC", source=dictionary["source"]
+    )
     new_ticker = stock.listing.symbols_by_exchange()
     ticker.loc[
         ~ticker[dictionary["ticker"]].isin(
@@ -234,7 +236,7 @@ def read_1_ticker_intra(ticker: str, dictionary: dict) -> None:
 
 def get_past_Friday() -> datetime.date:
     """_summary_
-    create the lastest Friday in the past to get new data when needed
+    create the latest Friday in the past to get new data when needed
     Returns:
         _type_: datetime.datetime.strftime("%Y-%m-%d")
     """
@@ -270,7 +272,7 @@ def get_full_data(path_ticker: str, path_out: str, dictionary: dict):
     clean_backup_data(path_out)
     table = pa.Table.from_pandas(data)
     pq.write_to_dataset(table, path_out)
-    print("sucessful create full data")
+    print("Successful create full data")
 
 
 def clean_backup_data(path: str, clean=False) -> None:
@@ -311,33 +313,31 @@ def get_data(
     Args:
         path_out (str): path to append or first time save dât
         path_ticker (str): ticker list path
-        dictionary (dict): colunm name
+        dictionary (dict): column name
 
     Returns:
         _type_: pd.DataFrame()
     """
     try:
         data = pd.read_parquet(path_out)
-        lastest_data_date = data["time"].max()
+        latest_data_date = data["time"].max()
     except Exception as e:
         print("Getting full data")
         get_full_data(path_out, path_ticker, dictionary)
         data = pd.read_parquet(path_out)
-        lastest_data_date = data["time"].max()
+        latest_data_date = data["time"].max()
 
     latest_friday = get_past_Friday()
     tickers = get_ticker(path_ticker, dictionary)
-    if lastest_data_date.strftime("%Y-%m-%d") < latest_friday:
-        lastest_data_date = lastest_data_date + pd.offsets.DateOffset(
-            1
-        )
+    if latest_data_date.strftime("%Y-%m-%d") < latest_friday:
+        latest_data_date = latest_data_date + pd.offsets.DateOffset(1)
         data = pd.DataFrame()
         fal_tick = []
         for tick, ex in zip(tickers.symbol, tickers.exchange):
             try:
                 temp = read_1_ticker(
                     tick,
-                    lastest_data_date.strftime("%Y-%m-%d"),
+                    latest_data_date.strftime("%Y-%m-%d"),
                     latest_friday,
                 )
                 temp["ticker"] = tick
@@ -382,10 +382,10 @@ def read_intra_data(
 
 def update_intra_data(path_ticker: str, path: str, dictionary: dict):
     """_summary_
-    update intrad day data for all tickers
+    update intra day data for all tickers
     Args:
         path_ticker (str): path of ticker parquet storage
-        path (str): path of instraday storage
+        path (str): path of intraday storage
         dictionary (dict): column name
     """
     tickers = get_ticker(path_ticker, dictionary)
@@ -423,16 +423,16 @@ def clean_daily_data(
     )
     stock_info = stock_info[stock_info["total_outstanding"] > 0]
     stock_data = stock_data[
-        stock_data["ticker"].isin(stock_info[dictionary["ticker"]])
+        stock_data["ticker"].isin(stock_info[dictionary["ticker"]])  # type: ignore
     ]
     stock_data = stock_data[
-        stock_data["ticker"].isin(stock_info[dictionary["ticker"]])
+        stock_data["ticker"].isin(stock_info[dictionary["ticker"]])  # type: ignore
     ]
     stock_data = stock_data.merge(
-        stock_info[[dictionary["ticker"], "total_outstanding"]],
+        stock_info[[dictionary["ticker"], "total_outstanding", "type"]],  # type: ignore
         how="inner",
         left_on=["ticker"],
-        right_on=[dictionary["ticker"]],
+        right_on=[dictionary["ticker"]],  # type: ignore
     )
     stock_data.loc[stock_data["close"] == 0, "close"] = None
     stock_data["close"] = stock_data.groupby("ticker")[
@@ -536,7 +536,7 @@ def AR_visualize(data: pd.Series, lag: int, period: int):
 
 def calculate_mape(actual: pd.Series, predicted: pd.Series):
     """_summary_
-    comute mean absolute percentage error
+    compute mean absolute percentage error
     Args:
         actual (series):
         predicted (series):
@@ -599,12 +599,12 @@ def ARIMA_visualize(
     Choose the best parameter in orders to create estimation of whole data set
     Args:
         data (pd.DataFrame): dataframe input
-        orders (list): a list of parameters for [autoregressive, differencing term, moving average]
+        orders (list): a list of parameters for [autoregression, differencing term, moving average]
         period (int): number of data trading days to be used to estimate
         metric (str, optional): _description_. Defaults to "aic", other choice are: 'bic', 'rmse' and 'mape'
 
     Raises:
-        ValueError: error when esimate by ARIMA function
+        ValueError: error when estimate by ARIMA function
 
     Returns:
         _type_: best order
@@ -727,8 +727,8 @@ def real_time_AR_visualize(
 ) -> pd.DataFrame:
     """_summary_
     Get predicted data and visualization of AR model
-    The function would predict on each time point on only data that available in that time point instead of using all data to detect changes. In other words, each prediction might use different model (parameters) to predict, only models' hyperpareter is the same.
-    TODO: add function to check for model parameter and quality over all timepoint
+    The function would predict on each time point on only data that available in that time point instead of using all data to detect changes. In other words, each prediction might use different model (parameters) to predict, only models' hyperparameter is the same.
+    TODO: add function to check for model parameter and quality over all time-point
     Args:
         data (pd.DataFrame): data frame that contain time and value columns
         val_col (str): name of value column
@@ -834,8 +834,8 @@ def real_time_ARIMA_visualize(
 ) -> pd.DataFrame:
     """_summary_
     get predicted data and visualization of ARIMA model
-        The function would predict on each time point on only data that available in that time point instead of using all data to detect changes. In other words, each prediction might use different model (parameters) to predict, only models' hyperpareter is the same.
-    TODO: add function to check for model parameter and quality over all timepoint
+        The function would predict on each time point on only data that available in that time point instead of using all data to detect changes. In other words, each prediction might use different model (parameters) to predict, only models' hyperparameter is the same.
+    TODO: add function to check for model parameter and quality over all time-point
     Args:
         data (pd.DataFrame): data frame that contain time and value columns
         val_col (str): name of value column
@@ -908,6 +908,247 @@ def real_time_ARIMA_visualize(
     # Show the plot
     plt.show()
     return predicted
+
+
+def draw_EFT(
+    data: pd.DataFrame,
+    time_col: str,
+    rank: int,
+    time_range: int,
+    stock_list: list = [],
+) -> None:
+    """_summary_
+    Draw Efficient Frontier line
+    Args:
+        data (pd.DataFrame): data
+        time_col (str): datetime columns name
+        rank (int): order of maximum data point used (-1 as the latest data)
+        time_range (int): how long from the maximum point to be computed time range, ! it must within the available data from the dataset and the max time
+        stock_list (list, optional): list of stock to compute, if not given auto filter stocks that has enough observation thought out the period . Defaults to [].
+    Returns:
+        None
+    """
+    time_list = data[time_col].unique()
+    time_list = sorted(time_list)[252:]
+    auto = rank
+    point = time_list[auto]
+    lower_point = time_list[auto - time_range]
+    print(f"visualization come from {lower_point} to {point}")
+    sub_data = data[
+        (data[time_col] < point) & (data[time_col] > lower_point)
+    ]
+    sub_data.dropna(
+        subset="close", inplace=True
+    )  # already ffill in the data pre-processing step.
+    filter = (
+        sub_data.groupby("ticker").time.agg("nunique").reset_index()
+    )
+    if len(stock_list) == 0:
+        list0 = filter[
+            filter[time_col] == filter[time_col].max()
+        ].ticker
+        sub_data = sub_data[sub_data["ticker"].isin(list0)]
+    else:
+        sub_data = sub_data[sub_data["ticker"].isin(stock_list)]
+
+    sub_data[time_col].value_counts()
+    sub_data = sub_data.pivot(
+        columns="ticker", values="close", index=time_col
+    )
+    tickers = len(sub_data.columns)
+    log_returns = np.log(sub_data / sub_data.shift(1))[1:]
+    mean_returns = log_returns.mean()
+    cov_matrix = log_returns.cov()
+    num_portfolios = 100000
+    results = np.zeros((4, num_portfolios))
+    for i in range(num_portfolios):
+        weights = np.random.random(tickers)
+        weights /= np.sum(weights)
+        portfolio_return = np.sum(mean_returns * weights) * 252
+        portfolio_volatility = np.sqrt(
+            np.dot(weights.T, np.dot(cov_matrix, weights))
+        ) * np.sqrt(252)
+        results[0, i] = portfolio_return
+        results[1, i] = portfolio_volatility
+        results[2, i] = results[0, i] / results[1, i]
+        results[3, i] = i
+    results_frame = pd.DataFrame(
+        results.T,
+        columns=["Return", "Volatility", "Sharpe Ratio", "Index"],
+    )
+    max_sharpe_portfolio = results_frame.loc[
+        results_frame["Sharpe Ratio"].idxmax()
+    ]
+    min_volatility_portfolio = results_frame.loc[
+        results_frame["Volatility"].idxmin()
+    ]
+    plt.figure(figsize=(10, 7))
+    plt.scatter(
+        results_frame["Volatility"],
+        results_frame["Return"],
+        c=results_frame["Sharpe Ratio"],
+        cmap="YlGnBu",
+        marker="o",
+    )
+    plt.colorbar(label="Sharpe Ratio")
+    plt.scatter(
+        max_sharpe_portfolio[1],
+        max_sharpe_portfolio[0],
+        marker="*",
+        color="r",
+        s=200,
+        label="Max Sharpe Ratio",
+    )
+    plt.scatter(
+        min_volatility_portfolio[1],
+        min_volatility_portfolio[0],
+        marker="*",
+        color="g",
+        s=200,
+        label="Min Volatility",
+    )
+    plt.title("Efficient Frontier")
+    plt.xlabel("Volatility")
+    plt.ylabel("Return")
+    plt.legend(labelspacing=0.8)
+    plt.show()
+
+
+def draw_EFT_with_market_portfolio(
+    data: pd.DataFrame,
+    time_col: str,
+    rank: int,
+    time_range: int,
+    stock_list: list = [],
+) -> None:
+    """_summary_
+    Draw Efficient Frontier line
+    Args:
+        data (pd.DataFrame): data
+        time_col (str): datetime columns name
+        rank (int): order of maximum data point used (-1 as the latest data)
+        time_range (int): how long from the maximum point to be computed
+        stock_list (list, optional): list of stock to compute, if not given auto filter stocks that has enough observation thought out the period . Defaults to [].
+    Returns:
+        None
+    """
+    time_list = data[time_col].unique()
+    time_list = sorted(time_list)[
+        252:
+    ]  # Ensure enough data points after sorting
+    auto = (
+        rank if rank < 0 else len(time_list) + rank
+    )  # Handle negative rank
+    point = time_list[auto]
+    lower_point = time_list[auto - time_range]
+    print(f"visualization come from {lower_point} to {point}")
+
+    sub_data = data[
+        (data[time_col] < point) & (data[time_col] > lower_point)
+    ]
+    sub_data.dropna(subset="close", inplace=True)
+
+    filter = (
+        sub_data.groupby("ticker").time.agg("nunique").reset_index()
+    )
+    if len(stock_list) == 0:
+        list0 = filter[
+            filter[time_col] == filter[time_col].max()
+        ].ticker
+        sub_data = sub_data[sub_data["ticker"].isin(list0)]
+    else:
+        sub_data = sub_data[sub_data["ticker"].isin(stock_list)]
+
+    sub_data[time_col].value_counts()
+    sub_data = sub_data.pivot(
+        columns="ticker", values="close", index=time_col
+    )
+    tickers = len(sub_data.columns)
+    log_returns = np.log(sub_data / sub_data.shift(1))[1:]
+    mean_returns = log_returns.mean()
+    cov_matrix = log_returns.cov()
+    num_portfolios = 1000000
+    results = np.zeros((4, num_portfolios))
+
+    # Calculate market value weighted portfolio
+    market_weights = (
+        data[data[time_col] == point]
+        .set_index("ticker")["market_weight"]
+        .reindex(sub_data.columns)
+    )
+    market_weights /= market_weights.sum()  # Normalize weights
+    market_portfolio_return = (
+        np.sum(mean_returns * market_weights) * 252
+    )
+    market_portfolio_volatility = np.sqrt(
+        np.dot(market_weights.T, np.dot(cov_matrix, market_weights))
+    ) * np.sqrt(252)
+
+    for i in range(num_portfolios):
+        weights = np.random.random(tickers)
+        weights /= np.sum(weights)
+        portfolio_return = np.sum(mean_returns * weights) * 252
+        portfolio_volatility = np.sqrt(
+            np.dot(weights.T, np.dot(cov_matrix, weights))
+        ) * np.sqrt(252)
+
+        results[0, i] = portfolio_return
+        results[1, i] = portfolio_volatility
+        results[2, i] = results[0, i] / results[1, i]
+        results[3, i] = i
+
+    results_frame = pd.DataFrame(
+        results.T,
+        columns=["Return", "Volatility", "Sharpe Ratio", "Index"],
+    )
+    max_sharpe_portfolio = results_frame.loc[
+        results_frame["Sharpe Ratio"].idxmax()
+    ]
+    min_volatility_portfolio = results_frame.loc[
+        results_frame["Volatility"].idxmin()
+    ]
+
+    plt.figure(figsize=(10, 7))
+    plt.scatter(
+        results_frame["Volatility"],
+        results_frame["Return"],
+        c=results_frame["Sharpe Ratio"],
+        cmap="YlGnBu",
+        marker="o",
+    )
+    plt.colorbar(label="Sharpe Ratio")
+    plt.scatter(
+        max_sharpe_portfolio[1],
+        max_sharpe_portfolio[0],
+        marker="*",
+        color="r",
+        s=200,
+        label="Max Sharpe Ratio",
+    )
+    plt.scatter(
+        min_volatility_portfolio[1],
+        min_volatility_portfolio[0],
+        marker="*",
+        color="g",
+        s=200,
+        label="Min Volatility",
+    )
+
+    # Plot market value weighted portfolio
+    plt.scatter(
+        market_portfolio_volatility,
+        market_portfolio_return,
+        marker="*",
+        color="b",
+        s=200,
+        label="Market Portfolio",
+    )
+
+    plt.title("Efficient Frontier")
+    plt.xlabel("Volatility")
+    plt.ylabel("Return")
+    plt.legend(labelspacing=0.8)
+    plt.show()
 
 
 if __name__ == "__main__":
