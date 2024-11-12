@@ -150,7 +150,11 @@ def update_ticker(
         ticker = pd.concat([ticker, new_ticker])
         print("updated")
         clean_backup_data(path, clean=True)
-        ticker.to_parquet(path, index=False)
+        ticker.to_parquet(
+            path, index=False, partition_cols="exchange"
+        )
+        # table = pa.Table.from_pandas(ticker)
+        # pq.write_to_dataset(table, path)
     return ticker
 
 
@@ -179,7 +183,7 @@ def get_full_ticker(path: str, dictionary: dict) -> None:
             )  # api might not respond when the request speed is too high
 
         except Exception as e:
-            print(i, e)
+            print(i)
     if os.path.exists(path):
         # Remove the directory or file
         shutil.rmtree(path)
@@ -217,7 +221,7 @@ def read_1_ticker(
 
 def read_1_ticker_intra(ticker: str, dictionary: dict) -> None:
     """_summary_
-    Read and save intradata daily
+    Read and save intra data daily
     Args:
         ticker (str): ticker list
         dictionary (dict): column name
@@ -298,10 +302,15 @@ def clean_backup_data(path: str, clean=False) -> None:
         backup_path = os.path.join(backup_dir, filename)
 
         # Copy the source file to the backup location
-        shutil.copy2(path, backup_path)
+
+        if os.path.exists(backup_path):
+            shutil.rmtree(backup_path)
+        shutil.copytree(path, backup_path)
         if clean:
             shutil.rmtree(path)
             print(f"{path} has been removed.")
+    else:
+        print("path cần backup không tồn tại")
 
 
 def get_data(
@@ -327,9 +336,11 @@ def get_data(
         data = pd.read_parquet(path_out)
         latest_data_date = data["time"].max()
 
+    print(f"newest data date is {latest_data_date}")
     latest_friday = get_past_Friday()
     tickers = get_ticker(path_ticker, dictionary)
     if latest_data_date.strftime("%Y-%m-%d") < latest_friday:
+        print("getting new data")
         latest_data_date = latest_data_date + pd.offsets.DateOffset(1)
         data = pd.DataFrame()
         fal_tick = []
@@ -339,15 +350,18 @@ def get_data(
                     tick,
                     latest_data_date.strftime("%Y-%m-%d"),
                     latest_friday,
+                    dictionary,
                 )
                 temp["ticker"] = tick
                 temp["exchange"] = ex
+                print(temp.shape)
                 data = pd.concat([data, temp], axis=0)
             except Exception as e:
                 fal_tick.append(tick)
-        clean_backup_data(path_out, clean=True)
-        table = pa.Table.from_pandas(data)
-        pq.write_to_dataset(table, path_out)
+        if data.shape[0] > 0:
+            clean_backup_data(path_out, clean=False)
+            table = pa.Table.from_pandas(data)
+            pq.write_to_dataset(table, path_out)
     return data, tickers
 
 
