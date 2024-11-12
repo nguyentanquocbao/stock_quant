@@ -1,6 +1,9 @@
-from function import *
+"""
+_summary_
+static path for default storing and processing
+"""
 
-path_ticker = "./data/ticker"
-path_stock_data = "./data/stock"
-path_dictionary = "./name_dict.json"
-path_transaction = './data/intra/'
+PATH_TICKER = "./data/ticker"
+PATH_STOCK_DATA = "./data/stock"
+PATH_DICTIONARY = "./name_dict.json"
+PATH_TRANSACTION = "./data/intra/"
