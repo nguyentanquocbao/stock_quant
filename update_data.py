@@ -246,14 +246,14 @@ def clean_backup_data(path: str, clean=False) -> None:
 
 
 def get_data(
-    path_stock_data: str, path_ticker: str, dictionary: dict
+    path_data: str, path_ticker: str, dictionary: dict
 ) -> pd.DataFrame:
     """_summary_
     * Function to read all data, only download full when run the first time,
     The later use would have it appended into current path
     * Function would update data to nearest Friday (weekly) - not included to day.
     Args:
-        path_stock_data (str): path to append or first time save dât
+        path_data (str): path to append or first time save dât
         path_ticker (str): ticker list path
         dictionary (dict): column name
 
@@ -261,12 +261,12 @@ def get_data(
         _type_: pd.DataFrame()
     """
     try:
-        data = pd.read_parquet(path_stock_data)
+        data = pd.read_parquet(path_data)
         latest_data_date = data["time"].max()
     except FileNotFoundError:
         print("Getting full data")
-        get_full_data(path_stock_data, path_ticker, dictionary)
-        data = pd.read_parquet(path_stock_data)
+        get_full_data(path_data, path_ticker, dictionary)
+        data = pd.read_parquet(path_data)
         latest_data_date = data["time"].max()
 
     print(f"latest data date is {latest_data_date}")
@@ -296,9 +296,9 @@ def get_data(
             except KeyError:
                 fal_tick.append(tick)
         if data.shape[0] > 0:
-            clean_backup_data(path_stock_data, clean=False)
+            clean_backup_data(path_data, clean=False)
             table = pa.Table.from_pandas(data)
-            pq.write_to_dataset(table, path_stock_data)
+            pq.write_to_dataset(table, path_data)
     return data, tickers
 
 
@@ -360,67 +360,105 @@ def update_intra_data(path_ticker: str, path: str, dictionary: dict):
     pq.write_to_dataset(table, path)
 
 
-def clean_daily_data(
-    path_stock_data: str,
+def clean_data(data: pd.DataFrame) -> pd.DataFrame:
+    """_summary_
+    clean dataset and interpolate missing value
+    Args:
+        data (pd.DataFrame): daily stock or indices data
+
+    Returns:
+        pd.DataFrame: cleaned dataset
+    """
+    data.loc[data["close"] == 0, "close"] = None
+    data["close"] = data.groupby("ticker")["close"].fillna(
+        method="ffill"
+    )
+    data = data.dropna(subset="close")
+    data["market_value"] = data["close"] * data["total_outstanding"]
+    data["return"] = (
+        data["close"] / data.groupby("ticker")["close"].shift(1) - 1
+    )
+    data["log_return"] = np.log(
+        data["close"] / data.groupby("ticker")["close"].shift(1)
+    )
+    data.sort_values(["ticker", "time"], inplace=True)
+
+    data["market_weight"] = data["market_value"] / data.groupby(
+        "exchange"
+    )["market_value"].transform("sum")
+    data["return_weighted"] = (
+        data["market_weight"] * data["return"]
+    ).fillna(0)
+    data["log_return_weighted"] = (
+        data["market_weight"] * data["log_return"]
+    ).fillna(0)
+    return data
+
+
+def get_cleaned_data(
+    path_data: str,
     path_ticker: str,
     dictionary=dict,
 ) -> pd.DataFrame:
     """_summary_
     Args:
-        path_stock_data (str, optional): _description_. Defaults to path_stock_data.
+        path_data (str, optional): _description_. Defaults to path_data.
         path_ticker (str, optional): _description_. Defaults to path_ticker.
         dictionary (dict, optional): _description_. Defaults to {}.
 
     Returns:
         pd.DataFrame: _description_
     """
-    stock_data, stock_info = get_data(
-        path_stock_data, path_ticker, dictionary
-    )
+    data, stock_info = get_data(path_data, path_ticker, dictionary)
     stock_info = stock_info[stock_info["total_outstanding"] > 0]
-    stock_data = stock_data[
-        stock_data["ticker"].isin(stock_info[dictionary["ticker"]])  # type: ignore
+    data = data[
+        data["ticker"].isin(stock_info[dictionary["ticker"]])  # type: ignore
     ]
-    stock_data = stock_data[
-        stock_data["ticker"].isin(stock_info[dictionary["ticker"]])  # type: ignore
+    data = data[
+        data["ticker"].isin(stock_info[dictionary["ticker"]])  # type: ignore
     ]
-    stock_data = stock_data.merge(
+    data = data.merge(
         stock_info[[dictionary["ticker"], "total_outstanding", "type"]],  # type: ignore
         how="inner",
         left_on=["ticker"],
         right_on=[dictionary["ticker"]],  # type: ignore
     )
-    stock_data.loc[stock_data["close"] == 0, "close"] = None
-    stock_data["close"] = stock_data.groupby("ticker")[
-        "close"
-    ].fillna(method="ffill")
-    stock_data = stock_data.dropna(subset="close")
-    stock_data["market_value"] = (
-        stock_data["close"] * stock_data["total_outstanding"]
-    )
-    stock_data["return"] = (
-        stock_data["close"]
-        / stock_data.groupby("ticker")["close"].shift(1)
-        - 1
-    )
-    stock_data["log_return"] = np.log(
-        stock_data["close"]
-        / stock_data.groupby("ticker")["close"].shift(1)
-    )
-    stock_data.sort_values(["ticker", "time"], inplace=True)
 
-    stock_data["market_weight"] = stock_data[
-        "market_value"
-    ] / stock_data.groupby("exchange")["market_value"].transform(
-        "sum"
+    return clean_data(data)
+
+
+def get_indices_data(dictionary: dict) -> pd.DataFrame:
+    """_summary_
+    get data for 2 major indices in Vietnam: vni and vn30
+    Args:
+        dictionary (_type_): dictionary
+
+    Returns:
+        pd.DataFrame: dictionary
+    """
+    stock = vn(show_log=False).stock(
+        symbol="ABC", source=dictionary["source"]
     )
-    stock_data["return_weighted"] = (
-        stock_data["market_weight"] * stock_data["return"]
-    ).fillna(0)
-    stock_data["log_return_weighted"] = (
-        stock_data["market_weight"] * stock_data["log_return"]
-    ).fillna(0)
-    return stock_data
+    vni = stock.quote.history(
+        symbol="VNINDEX",
+        end="2024-01-02",
+        start="2013-01-01",
+        interval="1D",
+    )
+    vni["exchange"] = "vni"
+    vni["ticker"] = "vni"
+    vni["total_outstanding"] = 1
+    vn30 = stock.quote.history(
+        symbol="VN30",
+        end="2024-01-02",
+        start="2013-01-01",
+        interval="1D",
+    )
+    vn30["total_outstanding"] = 1
+    vn30["ticker"] = "vn30"
+    vn30["exchange"] = "vn30"
+
+    return [clean_data(vni), clean_data(vn30)]
 
 
 if __name__ == "__main__":

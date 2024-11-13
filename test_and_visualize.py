@@ -428,6 +428,7 @@ def efficient_frontier_visual(
     rank: int,
     time_length: int,
     stock_list=None,
+    num_portfolios: int = 1000000,
 ) -> None:
     """_summary_
     Draw Efficient Frontier line
@@ -480,7 +481,6 @@ def efficient_frontier_visual(
     log_returns = np.log(sub_data / sub_data.shift(1))[1:]
     mean_returns = log_returns.mean()
     cov_matrix = log_returns.cov()
-    num_portfolios = 1000000
     results = np.zeros((4, num_portfolios))
 
     # Calculate market value weighted portfolio
