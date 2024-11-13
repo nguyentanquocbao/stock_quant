@@ -570,9 +570,12 @@ def adf_test(series: pd.Series, significance_level: float = 0.05):
         series (series): series data need to be test, series of float
         significance_level (float, optional): _description_. Defaults to 0.05.
     """
-    adf_statistic, p_value, _, _, critical_values, _ = adfuller(
-        series
-    )
+    # pylint: disable=undefined-variable
+    # pylint: disable=no-name-in-module
+    results = adfuller(series)
+    adf_statistic = results[0]
+    p_value = results[1]
+    critical_values = results[4]
     # Print ADF results
     print("ADF Test Results:")
     print("ADF Statistic:", adf_statistic)

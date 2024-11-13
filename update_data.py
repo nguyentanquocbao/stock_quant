@@ -349,7 +349,11 @@ def update_intra_data(path_ticker: str, path: str, dictionary: dict):
             temp["ticker"] = tick
             temp["exchange"] = ex
             data = pd.concat([data, temp], axis=0)
-        except Exception as e:
+        except ValueError:
+            fal_tick.append(tick)
+        except TypeError:
+            fal_tick.append(tick)
+        except KeyError:
             fal_tick.append(tick)
     clean_backup_data(path)
     table = pa.Table.from_pandas(data)
