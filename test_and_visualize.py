@@ -470,6 +470,7 @@ def efficient_frontier_visual(
             filter0[time_col] == filter0[time_col].max()
         ].ticker
         sub_data = sub_data[sub_data["ticker"].isin(list0)]
+        print(f"index created with {len(list0)} stock")
     else:
         sub_data = sub_data[sub_data["ticker"].isin(stock_list)]
 

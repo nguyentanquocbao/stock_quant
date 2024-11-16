@@ -219,6 +219,7 @@ def clean_backup_data(path: str, clean=False) -> None:
             .Defaults to False.
     """
     if os.path.exists(path):
+
         # Remove the directory or file
         source_dir = os.path.dirname(path)
 
