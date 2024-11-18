@@ -4,6 +4,7 @@ _summary_
 
 import os
 import shutil
+import json
 from dataclasses import dataclass
 
 import pandas as pd
@@ -56,39 +57,34 @@ class MacroData:
     """
 
     path: str
-    url_imf: str = "http://dataservices.imf.org/REST/SDMX_JSON.svc/"
+    macro_path: str
 
     def __post_init__(self):
         """Creates the directory path if it doesn't exist."""
         if not os.path.exists(self.path):
             os.makedirs(self.path)
             print("created a new path for macro data")
+        with open(self.macro_path, "r", encoding="utf-8") as a:
+            self.macro_dictionary = json.load(a)
+        self.url_imf = self.macro_dictionary["URL_IMF"]
 
-    def cpi(
-        self,
-        key: str = "CompactData/IFS/M..PCPI_IX",
-        data_partition: list = "country_name",
-        cpi_path: str = "/cpi",
-    ):
+    def get_imf(self, key):
         """_summary_
-
+        get data from imf api with given string
         Args:
-            key (str, optional): _description_. Defaults to "CompactData/IFS/M..PCPI_IX".
+            key (_type_): _description_
+            additional_col (_type_, optional): _description_. Defaults to None.
 
         Returns:
             _type_: _description_
         """
-        # path_cpi = self.path + cpi_path
         data = requests.get(
-            f"{self.url_imf}{key}", timeout=500
+            f"{self.url_imf}{key[0]}", timeout=700
         ).json()["CompactData"]["DataSet"]["Series"]
         all_data = []
         for dataset in data:
-            # observations = dataset["Obs"]
             observations = dataset.get("Obs", [])
-            # Create a DataFrame for the current dataset
             country_name = dataset.get("@REF_AREA", None)
-            base_year = dataset.get("@BASE_YEAR", None)
             try:
                 temp_df = pd.DataFrame(observations)
             except ValueError:
@@ -101,34 +97,52 @@ class MacroData:
                 inplace=True,
             )
             temp_df["country_name"] = country_name
-            temp_df["base_year"] = base_year
             try:
                 temp_df["value"] = pd.to_numeric(temp_df["value"])
             except KeyError:
                 continue
+            if len(key) > 1:
+                for col in key[1].items():
+                    temp_df[col[1]] = dataset.get(col[0], None)
             all_data.append(temp_df)
         final_df = pd.concat(all_data, ignore_index=True)
+        return final_df
+
+    def cpi(
+        self,
+        cpi_path: str = "/cpi",
+    ):
+        """_summary_
+
+        Args:
+            key (str, optional): _description_. Defaults to "CompactData/IFS/M..PCPI_IX".
+
+        Returns:
+            _type_: _description_
+        """
+        # path_cpi = self.path + cpi_path
+        data = self.get_imf(self.macro_dictionary["CPI"])
         if os.path.exists(self.path + cpi_path):
             print(
                 "There is some data in the given path, need to check, wait for results"
             )
-            final_df, update = self.check_data(
-                cpi_path, final_df, data_partition
+            data, update = self.check_data(
+                cpi_path, data, ["country_name"]
             )
             if update:
                 save_parquet(
                     self.path + cpi_path,
-                    final_df,
-                    partition=data_partition,
+                    data,
+                    partition=["country_name"],
                 )
         else:
             print("create new data for CPI")
             save_parquet(
                 self.path + cpi_path,
-                final_df,
-                partition=data_partition,
+                data,
+                partition=["country_name"],
             )
-        return final_df
+        return data
 
     def check_data(
         self, sub_path, new_df, data_partition: str = None
@@ -146,7 +160,6 @@ class MacroData:
         merged_df = pd.merge(
             old_df, new_df, how="outer", indicator=True
         )
-        print(old_df.shape, new_df.shape, merged_df.shape)
         # Check for conflicting values
         new_rows = merged_df[merged_df["_merge"] == "right_only"]
         conflict_old = merged_df[merged_df["_merge"] == "left_only"]
@@ -161,9 +174,9 @@ class MacroData:
                 save_parquet(path_conflict, conflicts, data_partition)
                 print(f"Conflicts found and saved to {path_conflict}")
             else:
-                print("CPI: no conflict")
+                print(f"{sub_path}: no conflict in the new data")
                 # Save the updated data to the old file
-            print("CPI: no new data")
+            print(f"{sub_path}: no new data")
             update = False
             return old_df, update
         else:
@@ -180,5 +193,9 @@ class MacroData:
                 create_path(self.path, "/conflict" + sub_path)
                 save_parquet(path_conflict, conflicts, data_partition)
                 print(f"Conflicts found and saved to {path_conflict}")
+            else:
+                print(
+                    f"{sub_path}: no conflict in old data when update data"
+                )
             update = True
             return updated_df, update
