@@ -79,7 +79,7 @@ class MacroData:
             _type_: _description_
         """
         data = requests.get(
-            f"{self.url_imf}{key[0]}", timeout=700
+            f"{self.url_imf}{key[0]}", timeout=500
         ).json()["CompactData"]["DataSet"]["Series"]
         all_data = []
         for dataset in data:
@@ -108,47 +108,50 @@ class MacroData:
         final_df = pd.concat(all_data, ignore_index=True)
         return final_df
 
-    def cpi(
-        self,
-        cpi_path: str = "/cpi",
-    ):
+    def check_for_update(self, data, path_check):
         """_summary_
-
+        Check error in new data and update if there already has some data
         Args:
-            key (str, optional): _description_. Defaults to "CompactData/IFS/M..PCPI_IX".
+            data (_type_): _description_
+            path_check (_type_): _description_
 
         Returns:
             _type_: _description_
         """
-        # path_cpi = self.path + cpi_path
-        data = self.get_imf(self.macro_dictionary["CPI"])
-        if os.path.exists(self.path + cpi_path):
+        if os.path.exists(self.path + path_check):
             print(
-                "There is some data in the given path, need to check, wait for results"
+                "There is some data in the given path, need to check"
             )
             data, update = self.check_data(
-                cpi_path, data, ["country_name"]
+                path_check, data, ["country_name"]
             )
             if update:
                 save_parquet(
-                    self.path + cpi_path,
+                    self.path + path_check,
                     data,
                     partition=["country_name"],
                 )
         else:
             print("create new data for CPI")
             save_parquet(
-                self.path + cpi_path,
+                self.path + path_check,
                 data,
                 partition=["country_name"],
             )
         return data
 
+    def create_or_update_all(self):
+        """_summary_
+        create or update all data
+        """
+        for i in self.macro_dictionary["DATA"].items():
+            self.check_for_update(self.get_imf(i[1]), i[0])
+            print(f"{i[0]} finished")
+
     def check_data(
         self, sub_path, new_df, data_partition: str = None
     ) -> pd.DataFrame:
         """_summary_
-
         Args:
             sub_path (_type_): _description_
             new_df (_type_): _description_
@@ -177,8 +180,7 @@ class MacroData:
                 print(f"{sub_path}: no conflict in the new data")
                 # Save the updated data to the old file
             print(f"{sub_path}: no new data")
-            update = False
-            return old_df, update
+            return old_df, False
         else:
             # Concatenate new rows to the old data
             updated_df = pd.concat(
@@ -197,5 +199,4 @@ class MacroData:
                 print(
                     f"{sub_path}: no conflict in old data when update data"
                 )
-            update = True
-            return updated_df, update
+            return updated_df, True

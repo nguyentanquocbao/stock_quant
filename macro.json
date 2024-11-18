@@ -1,27 +1,29 @@
 {
     "URL_IMF": "http://dataservices.imf.org/REST/SDMX_JSON.svc/",
-    "CPI": [
-        "CompactData/IFS/M..PCPI_IX",
-        {
-            "@BASE_YEAR": "base_year"
-        }
-    ],
-    "EXCHANGE_RATE": [
-        "CompactData/IFS/M..PCPI_IX"
-    ],
-    "EXPORT": [
-        "CompactData/IFS/M..TXG_FOB_USD"
-    ],
-    "IMPORT": [
-        "CompactData/IFS/M..TMG_CIF_USD"
-    ],
-    "INTEREST_LENDING": [
-        "CompactData/IFS/M.VN.FILR_PA"
-    ],
-    "INTEREST_BENCH_MARK": [
-        "CompactData/IFS/M.VN.FPOLM_PA"
-    ],
-    "INTEREST_DEPOSIT": [
-        "CompactData/IFS/M.VN.FIDR_PA"
-    ]
+    "DATA": {
+        "CPI": [
+            "CompactData/IFS/M..PCPI_IX",
+            {
+                "@BASE_YEAR": "base_year"
+            }
+        ],
+        "EXCHANGE_RATE": [
+            "CompactData/IFS/M..PCPI_IX"
+        ],
+        "EXPORT": [
+            "CompactData/IFS/M..TXG_FOB_USD"
+        ],
+        "IMPORT": [
+            "CompactData/IFS/M..TMG_CIF_USD"
+        ],
+        "INTEREST_LENDING": [
+            "CompactData/IFS/M..FILR_PA"
+        ],
+        "INTEREST_BENCH_MARK": [
+            "CompactData/IFS/M..FPOLM_PA"
+        ],
+        "INTEREST_DEPOSIT": [
+            "CompactData/IFS/M..FIDR_PA"
+        ]
+    }
 }
