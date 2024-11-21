@@ -82,12 +82,15 @@ class MacroData:
             _type_: _description_
         """
         data = requests.get(
-            f"{self.url_imf}{key[0]}", timeout=500
+            f"{self.url_imf}{"CompactData/IFS/M.."+key[0]}",
+            timeout=500,
         ).json()["CompactData"]["DataSet"]["Series"]
         all_data = []
         for dataset in data:
             observations = dataset.get("Obs", [])
             country_name = dataset.get("@REF_AREA", None)
+            unit = dataset.get("@UNIT_MULT", None)
+
             try:
                 temp_df = pd.DataFrame(observations)
             except ValueError:
@@ -102,6 +105,9 @@ class MacroData:
             temp_df["country_name"] = country_name
             try:
                 temp_df["value"] = pd.to_numeric(temp_df["value"])
+                temp_df["value"] = temp_df["value"] * (
+                    10 ^ unit if unit > 0 else 1
+                )
             except KeyError:
                 continue
             if len(key) > 1:
@@ -205,18 +211,20 @@ class MacroData:
                 )
             return updated_df, True
 
-    def read_only_macro(self, country_name: str = "VN"):
+    def read_data_only(
+        self, country_name: str = "VN"
+    ) -> pd.DataFrame:
         """_summary_
 
         Args:
             country_name (str, optional): _description_. Defaults to 'VN' : Vietnamese.
-
         Returns:
             _type_: _description_
         """
         macro_df = []
-        try:
-            for i in self.macro_dictionary["DATA"].items():
+        macro_name = []
+        for i in self.macro_dictionary["DATA"].items():
+            try:
                 macro_df.append(
                     pd.read_parquet(
                         self.path
@@ -225,22 +233,27 @@ class MacroData:
                         + country_name
                     )
                 )
-            return macro_df
-        except FileNotFoundError:
-            print(
-                "Currently no data stored offline, going to create for the first time"
-            )
-            self.create_or_update_all()
-            for i in self.macro_dictionary["DATA"].items():
-                macro_df.append(
-                    pd.read_parquet(
-                        self.path
-                        + i[0]
-                        + "/country_name="
-                        + country_name
+                macro_name.append(i[0])
+            except FileNotFoundError:
+                if os.path.exists(self.path + i[0]):
+                    print(
+                        f"There is no country data for {country_name} in {i[0]}"
                     )
-                )
-            return macro_df
+                else:
+                    print(
+                        "Currently no data stored offline, going to create for the first time"
+                    )
+                    self.create_or_update_all()
+                    macro_df.append(
+                        pd.read_parquet(
+                            self.path
+                            + i[0]
+                            + "/country_name="
+                            + country_name
+                        )
+                    )
+                    macro_name.append(i[0])
+        return macro_df, macro_name
 
     def visualize_macro(self, country_name: str = "VN"):
         """_summary_
@@ -248,10 +261,7 @@ class MacroData:
         Args:
             country_name (str, optional): _description_. Defaults to "VN".
         """
-        df_list = self.read_only_macro(country_name)
-        df_names = []
-        for i in self.macro_dictionary["DATA"].items():
-            df_names.append(i[0])
+        df_list, df_names = self.read_data_only(country_name)
         combined_df = pd.concat(
             [
                 df.assign(Indicator=name)
@@ -260,7 +270,8 @@ class MacroData:
         )
 
         # 2. Create Subplots
-        _, axes = plt.subplots(nrows=4, ncols=2, figsize=(15, 12))
+        nrows = len(df_names) // 2 + (len(df_names) % 2)
+        _, axes = plt.subplots(nrows=nrows, ncols=2, figsize=(15, 12))
         axes = axes.flatten()  # Flatten for easier iteration
 
         # 3. Plot Each Indicator
