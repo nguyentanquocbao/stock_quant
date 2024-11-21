@@ -2,13 +2,16 @@
 _summary_
 """
 
+import json
 import os
 import shutil
-import json
+import time
 from dataclasses import dataclass
 
+import matplotlib.pyplot as plt
 import pandas as pd
 import requests
+import seaborn as sns
 
 
 def create_path(path: str, sub_path: str = None) -> None:
@@ -132,7 +135,7 @@ class MacroData:
                     partition=["country_name"],
                 )
         else:
-            print("create new data for CPI")
+            print(f"create new data for {path_check}")
             save_parquet(
                 self.path + path_check,
                 data,
@@ -147,6 +150,7 @@ class MacroData:
         for i in self.macro_dictionary["DATA"].items():
             self.check_for_update(self.get_imf(i[1]), i[0])
             print(f"{i[0]} finished")
+            time.sleep(10)
 
     def check_data(
         self, sub_path, new_df, data_partition: str = None
@@ -177,7 +181,7 @@ class MacroData:
                 save_parquet(path_conflict, conflicts, data_partition)
                 print(f"Conflicts found and saved to {path_conflict}")
             else:
-                print(f"{sub_path}: no conflict in the new data")
+                print(f"{sub_path}: no conflict in the old data")
                 # Save the updated data to the old file
             print(f"{sub_path}: no new data")
             return old_df, False
@@ -193,10 +197,88 @@ class MacroData:
                 path_conflict = self.path + "/conflict" + sub_path
                 create_path(self.path, "/conflict")
                 create_path(self.path, "/conflict" + sub_path)
-                save_parquet(path_conflict, conflicts, data_partition)
+                save_parquet(path_conflict, merged_df, data_partition)
                 print(f"Conflicts found and saved to {path_conflict}")
             else:
                 print(
                     f"{sub_path}: no conflict in old data when update data"
                 )
             return updated_df, True
+
+    def read_only_macro(self, country_name: str = "VN"):
+        """_summary_
+
+        Args:
+            country_name (str, optional): _description_. Defaults to 'VN' : Vietnamese.
+
+        Returns:
+            _type_: _description_
+        """
+        macro_df = []
+        try:
+            for i in self.macro_dictionary["DATA"].items():
+                macro_df.append(
+                    pd.read_parquet(
+                        self.path
+                        + i[0]
+                        + "/country_name="
+                        + country_name
+                    )
+                )
+            return macro_df
+        except FileNotFoundError:
+            print(
+                "Currently no data stored offline, going to create for the first time"
+            )
+            self.create_or_update_all()
+            for i in self.macro_dictionary["DATA"].items():
+                macro_df.append(
+                    pd.read_parquet(
+                        self.path
+                        + i[0]
+                        + "/country_name="
+                        + country_name
+                    )
+                )
+            return macro_df
+
+    def visualize_macro(self, country_name: str = "VN"):
+        """_summary_
+        get visualize for 1 country
+        Args:
+            country_name (str, optional): _description_. Defaults to "VN".
+        """
+        df_list = self.read_only_macro(country_name)
+        df_names = []
+        for i in self.macro_dictionary["DATA"].items():
+            df_names.append(i[0])
+        combined_df = pd.concat(
+            [
+                df.assign(Indicator=name)
+                for df, name in zip(df_list, df_names)
+            ]
+        )
+
+        # 2. Create Subplots
+        _, axes = plt.subplots(nrows=4, ncols=2, figsize=(15, 12))
+        axes = axes.flatten()  # Flatten for easier iteration
+
+        # 3. Plot Each Indicator
+        for i, indicator in enumerate(df_names):
+            ax = axes[i]
+            sns.lineplot(
+                data=combined_df[
+                    combined_df["Indicator"] == indicator
+                ],
+                x="TIME_PERIOD",
+                y="value",
+                ax=ax,
+                label=indicator,
+            )
+            ax.set_title(indicator)
+            ax.set_xlabel("Time Period")
+            ax.set_ylabel("Value")
+
+        # 4. Adjust Layout
+        plt.tight_layout()
+        plt.show()
