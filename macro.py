@@ -7,6 +7,7 @@ import os
 import shutil
 import time
 from dataclasses import dataclass
+from typing import List
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -54,7 +55,7 @@ def save_parquet(path, data, partition=None, replace=False):
 @dataclass
 class MacroData:
     """_summary_
-
+    Download, store, and visualize all of macro-data asked in the json dictionary included
     Returns:
         _type_: _description_
     """
@@ -86,10 +87,11 @@ class MacroData:
             timeout=500,
         ).json()["CompactData"]["DataSet"]["Series"]
         all_data = []
+
         for dataset in data:
             observations = dataset.get("Obs", [])
             country_name = dataset.get("@REF_AREA", None)
-            unit = dataset.get("@UNIT_MULT", None)
+            unit = int(dataset.get("@UNIT_MULT", None))
 
             try:
                 temp_df = pd.DataFrame(observations)
@@ -106,7 +108,7 @@ class MacroData:
             try:
                 temp_df["value"] = pd.to_numeric(temp_df["value"])
                 temp_df["value"] = temp_df["value"] * (
-                    10 ^ unit if unit > 0 else 1
+                    10**unit if unit > 0 else 1
                 )
             except KeyError:
                 continue
@@ -159,7 +161,7 @@ class MacroData:
             time.sleep(10)
 
     def check_data(
-        self, sub_path, new_df, data_partition: str = None
+        self, sub_path, new_df, data_partition: List[str] = None
     ) -> pd.DataFrame:
         """_summary_
         Args:

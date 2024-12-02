@@ -1,0 +1,11 @@
+{
+    "ticker": "symbol",
+    "share_outstanding": [
+        "listing",
+        "listed_share"
+    ],
+    "exchange": "exchange",
+    "source": "VCI",
+    "path_ticker_list": "ticker_list.parquet",
+    "path_ticker_daily_data": "stock_data.parquet"
+}

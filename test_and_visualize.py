@@ -3,12 +3,17 @@ _summary_
 module to create visualization and test hypotheses
 """
 
+import contextlib
+import io
+import warnings
+from dataclasses import dataclass
 from datetime import datetime
+from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
+from icecream import ic
 from joblib import Parallel, delayed
 from sklearn.metrics import mean_squared_error
 from statsmodels.tsa.ar_model import AutoReg
@@ -37,7 +42,6 @@ def simple_moving_average_visual(
     plt.title("Simple moving average return")
     plt.legend()
     plt.grid(True)  # Add grid for better readability
-
     plt.show()
 
 
@@ -82,130 +86,7 @@ def exponential_moving_average_visual(
     plt.title("Exponential Mean Return")
     plt.legend()
     plt.grid(True)  # Add grid for better readability
-
     plt.show()
-
-
-def auto_regression_visualize(data: pd.Series, lag: int, period: int):
-    """_summary_
-    Create estimation of whole data set
-    Args:
-        data (Series): dataframe input
-        lag (int):number of lag period used
-        period (int): number of data trading days to be used to estimate
-    Returns:
-        _type_: None
-    """
-    data = data[-period:]
-    ar_model = AutoReg(data, lags=lag).fit()
-    ar_predictions = ar_model.predict(start=1, end=period)
-    print(ar_model.pvalues)
-    print(ar_model.params)
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            y=data,
-            mode="lines",
-            name="Original Series",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            y=ar_predictions,
-            mode="lines",
-            name="AR(1) Predictions",
-            line=dict(color="red"),
-        )
-    )
-    fig.update_layout(
-        title="AR(1) Model Predictions",
-        xaxis_title="Time",
-        yaxis_title="Value",
-    )
-    fig.show()
-
-
-def arima_visualize(
-    data: pd.DataFrame, orders: list, period: int, metric="aic"
-):
-    """_summary_
-    Choose the best parameter in orders to create estimation of whole data set
-    Args:
-        data (pd.DataFrame): dataframe input
-        orders (list): a list of parameters for [autoregression, differencing term, moving average]
-        period (int): number of data trading days to be used to estimate
-        metric (str, optional): _description_.
-            Defaults to "aic", other choice are: 'bic', 'rmse' and 'mape'
-    Raises:
-        ValueError: error when estimate by ARIMA function
-
-    Returns:
-        _type_: best order
-    """
-    data = data[-period:]
-    metric_values = []  # Store metric values for each model
-    models = {}  # Dictionary to store fitted models for each order
-
-    # Loop through each order and fit the ARIMA model
-    for order in orders:
-        # Fit the ARIMA model
-        arima_model = ARIMA(data, order=order).fit()
-        predictions = arima_model.predict(start=0, end=period - 1)
-        # Calculate the chosen metric
-        if metric == "mape":
-            metric_value = calculate_mape(data, predictions)
-        elif metric == "rmse":
-            metric_value = calculate_rmse(data, predictions)
-        elif metric == "aic":
-            metric_value = arima_model.aic
-        elif metric == "bic":
-            metric_value = arima_model.bic
-        else:
-            raise ValueError(
-                "Invalid metric. Choose from 'mape', 'rmse', 'aic', or 'bic'."
-            )
-        # Store metric and model
-        metric_values.append(metric_value)
-        models[order] = arima_model
-        print(f"Order {order}: {metric.upper()} = {metric_value}")
-    # Find the best model with the smallest metric value
-    best_index = metric_values.index(min(metric_values))
-    best_order = orders[best_index]
-    best_model = models[best_order]
-    best_predictions = best_model.predict(start=0, end=period - 1)
-    # Print best model details
-    print(f"\nBest Model Order: {best_order}")
-    print(f"Best Model {metric.upper()}:", metric_values[best_index])
-    print("P-values:", best_model.pvalues)
-    print("Parameters:", best_model.params)
-    # Visualization
-    fig = go.Figure()
-    # Original series as a bar chart
-    fig.add_trace(
-        go.Bar(
-            y=data,
-            name="Original Series",
-            marker=dict(color="blue"),
-        )
-    )
-    # ARIMA predictions of the best model as a line chart
-    fig.add_trace(
-        go.Scatter(
-            y=best_predictions,
-            mode="lines",
-            name=f"ARIMA{best_order} Predictions",
-            line=dict(color="red"),
-        )
-    )
-    fig.update_layout(
-        title=f"Best ARIMA Model (Order {best_order}) Predictions",
-        xaxis_title="Time",
-        yaxis_title="Value",
-    )
-    fig.show()
-
-    # Return the metric values and the best model order
-    return metric_values, best_order
 
 
 def auto_regression_forecast_1_step(
@@ -229,6 +110,7 @@ def auto_regression_forecast_1_step(
         pd.DataFrame: dataframe that contain predicted values
     """
     temp = data[data[time_col] <= time0]
+    temp.index = pd.PeriodIndex(temp[time_col], freq="B")
     temp = temp.tail(length)
     ar_model = AutoReg(temp[val_col], lags=lag).fit()
     return pd.DataFrame(
@@ -298,125 +180,6 @@ def real_time_auto_regression_visualize(
     ax.set_ylabel("Value")
     # Add legend
     ax.legend()
-    # Show the plot
-    plt.show()
-    return predicted
-
-
-def arima_forecast_1_step(
-    data: pd.DataFrame,
-    time_col: str,
-    time0: datetime,
-    val_col: str,
-    order: list,
-) -> pd.DataFrame:
-    """_summary_
-    Function to forecast by AR with given condition
-    Args:
-        data (pd.DataFrame): data frame that contain time and value columns
-        val_col (str): name of value column
-        length (int): trend time to rollback for each estimation
-        time0 (datetime): time point to begin rollback
-        time_col (str): time column name
-        lag (int): number of lag used to put in model
-    Returns:
-        pd.DataFrame: dataframe that contain predicted values
-    """
-    data[time_col] = pd.to_datetime(data[time_col], errors="coerce")
-    data = data.set_index(time_col, drop=True)
-    arima_model = ARIMA(data[val_col].values, order=order).fit()
-    return pd.DataFrame(
-        {
-            time_col: time0,
-            "predict": arima_model.forecast(steps=1),
-        }
-    )
-
-
-def real_time_arima_visualize(
-    data: pd.DataFrame,
-    val_col: str,
-    time_col: str,
-    length: int,
-    order: list,
-    para=False,
-) -> pd.DataFrame:
-    """_summary_
-    get predicted data and visualization of ARIMA model
-        The function would predict on each time point on only data that available
-            in that time point, instead of using all data to detect changes.
-        In other words, each prediction might use different model (parameters) to predict,
-            only models' hyperparameter is the same.
-    TODO: add function to check for model parameter and quality over all time-point
-    Args:
-        data (pd.DataFrame): data frame that contain time and value columns
-        val_col (str): name of value column
-        length (int): trend time to rollback for each estimation
-        time0 (datetime): time point to begin rollback
-        time_col (str): time column name
-        lag (int): number of lag used to put in model
-        data (pd.DataFrame): _description_
-    Returns:
-        pd.DataFrame: dataframe that contain predicted values for all given dates
-    """
-    data.sort_values(by=time_col, inplace=True)
-    time_list = data[time_col][length:]
-    if not para:
-        predicted = pd.DataFrame()
-        for i in time_list:
-
-            predicted = pd.concat(
-                [
-                    predicted,
-                    arima_forecast_1_step(
-                        data[data[time_col] <= i].tail(length),
-                        time_col,
-                        i,
-                        val_col,
-                        order,
-                    ),
-                ],
-                axis=0,
-            )
-    else:
-        predicted = Parallel(n_jobs=-1)(
-            delayed(arima_forecast_1_step)(
-                data[data[time_col] <= i].tail(length),
-                time_col,
-                i,
-                val_col,
-                order,
-            )
-            for i in time_list
-        )
-        predicted = pd.concat(predicted, axis=0)
-    predicted = predicted.merge(
-        data[[val_col, time_col]], how="inner", on=time_col
-    )
-    predicted.set_index(time_col, inplace=True, drop=True)
-    _, ax = plt.subplots()
-
-    # Plot the original series
-    ax.plot(
-        predicted.index, predicted[val_col], label="Original Series"
-    )
-
-    # Plot the AR model predictions
-    ax.plot(
-        predicted.index,
-        predicted["predict"],
-        label=f"AR( {order} ) Predictions",
-        color="red",
-    )
-
-    # Add title and labels
-    ax.set_title(f"AR( {order} ) Model Predictions")
-    ax.set_xlabel("Time")
-    ax.set_ylabel("Value")
-
-    # Add legend
-    ax.legend()
-
     # Show the plot
     plt.show()
     return predicted
@@ -571,29 +334,64 @@ def adf_test(series: pd.Series, significance_level: float = 0.05):
         series (series): series data need to be test, series of float
         significance_level (float, optional): _description_. Defaults to 0.05.
     """
-    # pylint: disable=undefined-variable
-    # pylint: disable=no-name-in-module
-    results = adfuller(series)
-    adf_statistic = results[0]
-    p_value = results[1]
-    critical_values = results[4]
-    # Print ADF results
-    print("ADF Test Results:")
-    print("ADF Statistic:", adf_statistic)
-    print("p-value:", p_value)
-    for key, value in critical_values.items():
-        print(f"Critical Value ({key}): {value}")
-
-    # Make judgment based on p-value
-    if p_value < significance_level:
-        print(
-            "Judgment: The series is likely stationary (Reject null hypothesis)."
-        )
+    if series.empty:
+        print("Empty series provided to ADF test")
     else:
-        print(
-            "Judgment: The series is likely non-stationary (Fail to reject null hypothesis)."
+        results = adfuller(series)
+        adf_statistic = results[0]
+        p_value = results[1]
+        critical_values = results[4]  # type: ignore
+        # Print ADF results
+        ic(
+            adf_statistic,
+            p_value,
+            critical_values,
         )
-    print("\n" + "=" * 40 + "\n")
+        if p_value < significance_level:
+            print(
+                "Judgment: The series is likely stationary (Reject null hypothesis)."
+            )
+        else:
+            print(
+                "Judgment: The series is likely non-stationary (Fail to reject null hypothesis)."
+            )
+        print("\n" + "=" * 40 + "\n")
+
+
+def kpss_test(series: pd.Series, significance_level=0.05):
+    """_summary_
+    Test for stationary with:
+        H0: given series is not stationary
+    Args:
+        series (series): input series
+        significance_level (float, optional):  Defaults to 0.05.
+    """
+
+    if series.empty:
+        print("Empty series provided to ADF test")
+    else:
+        result = kpss(series, regression="c")
+        kpss_statistic, p_value, _, critical_values = result
+
+        # Print KPSS results
+        ic(
+            kpss_statistic,
+            p_value,
+            critical_values,
+        )
+        # for key, value in critical_values.items():
+        #     print(f"Critical Value ({key}): {value}")
+
+        # Make judgment based on p-value
+        if p_value < significance_level:
+            print(
+                "Judgment: The series is likely non-stationary (Reject null hypothesis)."
+            )
+        else:
+            print(
+                "Judgment: The series is likely stationary (Fail to reject null hypothesis)."
+            )
+        print("\n" + "=" * 40 + "\n")
 
 
 def calculate_mape(actual: pd.Series, predicted: pd.Series):
@@ -621,34 +419,3 @@ def calculate_rmse(actual: pd.Series, predicted: pd.Series):
         _type_: value
     """
     return np.sqrt(mean_squared_error(actual, predicted))
-
-
-def kpss_test(series: pd.Series, significance_level=0.05):
-    """_summary_
-    Test for stationary with:
-        H0: given series is not stationary
-    Args:
-        series (series): input series
-        significance_level (float, optional):  Defaults to 0.05.
-    """
-
-    result = kpss(series, regression="c")
-    kpss_statistic, p_value, _, critical_values = result
-
-    # Print KPSS results
-    print("KPSS Test Results:")
-    print("KPSS Statistic:", kpss_statistic)
-    print("p-value:", p_value)
-    for key, value in critical_values.items():
-        print(f"Critical Value ({key}): {value}")
-
-    # Make judgment based on p-value
-    if p_value < significance_level:
-        print(
-            "Judgment: The series is likely non-stationary (Reject null hypothesis)."
-        )
-    else:
-        print(
-            "Judgment: The series is likely stationary (Fail to reject null hypothesis)."
-        )
-    print("\n" + "=" * 40 + "\n")

@@ -19,7 +19,7 @@
         "INTEREST_LENDING": [
             "FILR_PA"
         ],
-        "INTEREST_BENCH_MARK": [
+        "INTEREST_BENCHMARK": [
             "FPOLM_PA"
         ],
         "TREASURY_BILL_RATE": [
@@ -28,7 +28,7 @@
         "GOV_BOND": [
             "FIGB_PA"
         ],
-        "UNEMPLOYMENT_RATE ": [
+        "UNEMPLOYMENT_RATE": [
             "LU_PE_NUM"
         ]
     }
