@@ -13,7 +13,6 @@ from typing import List
 import pandas as pd
 import numpy as np
 from joblib import Parallel, delayed
-from rich import print as pprint
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -96,7 +95,7 @@ class StockData:
         if not os.path.exists(
             self.path + self.dictionary["path_ticker_list"]
         ):
-            pprint("create data for first time")
+            print("create data for first time")
             self.reload_ticker_list()
         return pd.read_parquet(
             self.path + self.dictionary["path_ticker_list"]
@@ -171,7 +170,7 @@ class StockData:
                 "exchange",
             ] = "DELISTED"
         except ConnectionError:
-            pprint(f"Connection error on {ticker}")
+            print(f"Connection error on {ticker}")
             raise
         return data_copy
 

@@ -70,7 +70,7 @@ def info_criteria_selection_ma(timeseries, max_order=30):
     }
 
 
-def Arima_for_all_data(
+def ma_for_all_data(
     series: pd.Series,
     start_index: int,
     ma_order: List[int],
@@ -127,9 +127,8 @@ def plot_best_ma_model(
     results = pd.DataFrame()
     for order in range(1, max_orders + 1):
         start_indices = range(len(timeseries) - min_data_length)
-        start_indices = range(len(timeseries) - min_data_length)
         output = Parallel(n_jobs=-7)(
-            delayed(Arima_for_all_data)(
+            delayed(ma_for_all_data)(
                 timeseries, start_index, order, min_data_length
             )
             for start_index in start_indices
@@ -203,9 +202,12 @@ def visualize_ma(series, ma_order, min_data_length=252):
     min_data_length : int, optional (default=252)
         Minimum length of training data
     """
-    start_index = max(ma_order + 1, min_data_length)
-    output = Arima_for_all_data(
-        series, start_index, ma_order, min_data_length
+    start_indices = range(len(series) - min_data_length)
+    output = Parallel(n_jobs=-7)(
+        delayed(ma_for_all_data)(
+            series, start_index, ma_order, min_data_length
+        )
+        for start_index in start_indices
     )
     fold_reals, fold_predictions = zip(*output)
     plt.figure(figsize=(10, 5))
